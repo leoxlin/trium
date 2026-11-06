@@ -7,9 +7,10 @@ skillet [--file <path>]
 skillet [--file <path>] apply
 ```
 
-The manifest's required `target.agent` selects exactly one of `codex`, `claude`, or `kimi`. The default manifest is
-`skillet.yaml` in the current working directory. `--file` accepts a YAML path and anchors local source paths to that
-file's directory; GitHub paths remain relative to their repository.
+The manifest's required `target.agent` selects exactly one of `codex`, `claude`, or `kimi`. When `--file` is omitted,
+the CLI loads `~/.config/skillet.yaml`; it does not fall back to `skillet.yaml` in the current working directory. When
+`--file` is provided, the CLI loads exactly that YAML path instead. For either form, local source paths are anchored to
+the selected manifest's directory; GitHub paths remain relative to their repository.
 
 The first form is Plan. The second is Apply. Version 1 has no separate `plan` subcommand, saved-plan argument, prune
 command, agent argument, or agent auto-detection. Extra positional arguments are invocation errors.

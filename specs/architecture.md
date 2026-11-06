@@ -90,7 +90,8 @@ validation in one module instead of duplicating them across three agents and two
 
 ## Reconciliation flow
 
-1. The CLI selects `skillet.yaml` or the path supplied by the global `--file` option.
+1. The CLI loads `~/.config/skillet.yaml` by default, or exactly the path supplied by the global `--file` option. It
+   does not search for or merge another manifest.
 2. The skillet module decodes and statically validates the complete document, including its single `target`. It resolves
    local sources and acquires each declared GitHub source once into memory, then validates bundle content and computes
    semantic fingerprints.
