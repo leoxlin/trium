@@ -166,7 +166,7 @@ See [engine.md](engine.md) for command and failure contracts.
 
 ## Related design documents
 
-- [schema.md](schema.md): version 1 manifest and canonical resource semantics
+- [skillet.schema.yaml](../skillet.schema.yaml): version 1 manifest and canonical resource semantics
 - [interfaces.md](interfaces.md): Go interfaces and invariants
 - [agents.md](agents.md): native targets, conversion rules, and adapter execution strategies
 - [engine.md](engine.md): CLI, diff, locking, backup, and exit behavior

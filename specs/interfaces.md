@@ -24,7 +24,7 @@ type Item interface {
 ```
 
 Each resource value implements `Item`. `Key` is the manifest name. `Fingerprint` is the canonical semantic digest
-defined in [schema.md](schema.md), not a digest of native serialization.
+defined in [skillet.schema.yaml](../skillet.schema.yaml), not a digest of native serialization.
 
 Desired file-backed values retain a bundle source so an adapter can stage content. A local source contains its resolved
 path. A GitHub source contains an immutable in-memory snapshot of regular file paths, bytes, and executable bits, plus

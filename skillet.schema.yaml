@@ -1,0 +1,160 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Skillet manifest
+description: Schema for a version 1 skillet.yaml file.
+type: object
+additionalProperties: false
+required:
+  - version
+properties:
+  version:
+    type: integer
+    const: 1
+  skills:
+    type: array
+    items:
+      $ref: '#/$defs/bundle'
+    default: []
+  plugins:
+    type: array
+    items:
+      $ref: '#/$defs/bundle'
+    default: []
+  mcps:
+    type: array
+    items:
+      $ref: '#/$defs/mcp'
+    default: []
+  context:
+    type: array
+    items:
+      $ref: '#/$defs/contextSegment'
+    default: []
+$defs:
+  name:
+    type: string
+    pattern: '^[a-z0-9][a-z0-9._-]{0,63}$'
+  localSource:
+    type: string
+    minLength: 1
+    pattern: '^[^\\\x00-\x1F\x7F-\x9F]+$'
+    not:
+      pattern: '^(?:/|[A-Za-z]:|[A-Za-z][A-Za-z0-9+.-]*:)'
+    $comment: The loader must clean the path, enforce directory containment, and reject symlinks.
+  repositoryPath:
+    type: string
+    minLength: 1
+    pattern: '^[^\\\x00-\x1F\x7F-\x9F]+$'
+    not:
+      pattern: '^(?:/|[A-Za-z]:)'
+    $comment: The loader must clean the path, enforce repository containment, and reject symlinked paths.
+  bundle:
+    type: object
+    additionalProperties: false
+    required:
+      - name
+    properties:
+      name:
+        $ref: '#/$defs/name'
+      source:
+        $ref: '#/$defs/localSource'
+      github:
+        type: string
+        pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+      path:
+        $ref: '#/$defs/repositoryPath'
+      ref:
+        type: string
+        pattern: '^[^\s\x00-\x1F\x7F-\x9F]+$'
+    oneOf:
+      - title: Local bundle
+        required:
+          - source
+        not:
+          anyOf:
+            - required:
+                - github
+            - required:
+                - path
+            - required:
+                - ref
+      - title: GitHub bundle
+        required:
+          - github
+        not:
+          required:
+            - source
+  mcp:
+    type: object
+    additionalProperties: false
+    required:
+      - name
+    properties:
+      name:
+        $ref: '#/$defs/name'
+      command:
+        type: string
+        minLength: 1
+      args:
+        type: array
+        items:
+          type: string
+        default: []
+      env:
+        type: object
+        additionalProperties:
+          type: string
+        default: {}
+      cwd:
+        type: string
+        minLength: 1
+      url:
+        type: string
+        format: uri
+        pattern: '^https?://'
+      headers:
+        type: object
+        additionalProperties:
+          type: string
+        default: {}
+      bearer_token_env:
+        type: string
+        pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
+    oneOf:
+      - title: Stdio server
+        required:
+          - command
+        not:
+          anyOf:
+            - required:
+                - url
+            - required:
+                - headers
+            - required:
+                - bearer_token_env
+      - title: Streamable HTTP server
+        required:
+          - url
+        not:
+          anyOf:
+            - required:
+                - command
+            - required:
+                - args
+            - required:
+                - env
+            - required:
+                - cwd
+  contextSegment:
+    type: object
+    additionalProperties: false
+    required:
+      - name
+      - source
+    properties:
+      name:
+        $ref: '#/$defs/name'
+      source:
+        $ref: '#/$defs/localSource'
+$comment: >-
+  Strict YAML decoding must reject duplicate mapping keys. Loader validation must reject duplicate names within each
+  resource class and enforce path containment, symlink restrictions, and acquired-content requirements.
