@@ -5,10 +5,30 @@ type: object
 additionalProperties: false
 required:
   - version
+  - target
 properties:
   version:
     type: integer
     const: 1
+  target:
+    type: object
+    additionalProperties: false
+    required:
+      - agent
+    properties:
+      agent:
+        type: string
+        enum:
+          - codex
+          - claude
+          - kimi
+      path:
+        type: string
+        minLength: 1
+        pattern: '^(?:/|~/|[A-Za-z]:[\\/])[^\\\x00-\x1F\x7F-\x9F]*$'
+        $comment: >-
+          Optional absolute agent-home path, or a path beginning with ~/. When omitted, the agent-specific environment
+          variable and then ~/.codex, ~/.claude, or ~/.kimi-code determines the target.
   skills:
     type: array
     items:

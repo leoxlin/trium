@@ -3,16 +3,16 @@
 ## Command shape
 
 ```text
-skillet [--file <path>] <agent>
-skillet [--file <path>] <agent> apply
+skillet [--file <path>]
+skillet [--file <path>] apply
 ```
 
-`<agent>` is exactly `codex`, `claude`, or `kimi`. The default manifest is `skillet.yaml` in the current working
-directory. `--file` accepts a YAML path and anchors local source paths to that file's directory; GitHub paths remain
-relative to their repository.
+The manifest's required `target.agent` selects exactly one of `codex`, `claude`, or `kimi`. The default manifest is
+`skillet.yaml` in the current working directory. `--file` accepts a YAML path and anchors local source paths to that
+file's directory; GitHub paths remain relative to their repository.
 
 The first form is Plan. The second is Apply. Version 1 has no separate `plan` subcommand, saved-plan argument, prune
-command, or agent auto-detection. Extra positional arguments are invocation errors.
+command, agent argument, or agent auto-detection. Extra positional arguments are invocation errors.
 
 ## Plan
 

@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=./skillet.schema.yaml
+version: 1
+
+target:
+  agent: codex
+  # Optional: override CODEX_HOME or the default ~/.codex target.
+  # path: ~/.codex-team
+
+skills:
+  - name: code-review
+    source: skills/code-review
+  - name: team-workflows
+    github: leoxlin/skillets
+    path: skills/team-workflows
+    ref: main
+
+plugins:
+  - name: team-tools
+    source: plugins/team-tools
+
+mcps:
+  - name: filesystem
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - .
+    cwd: .
+  - name: internal-docs
+    url: https://mcp.example.com/mcp
+    headers:
+      X-Client: skillet-example
+    bearer_token_env: INTERNAL_DOCS_TOKEN
+
+context:
+  - name: team-conventions
+    source: context/team-conventions.md

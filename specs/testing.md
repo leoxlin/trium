@@ -10,6 +10,7 @@ native targets, not mocks of the interface being tested.
 Use table-driven tests for:
 
 - supported version and every resource class;
+- a required single target, all supported agents, absolute and `~/` overrides, and missing or invalid target paths;
 - unknown fields, duplicate YAML keys, duplicate names, invalid names, and nulls;
 - stdio/HTTP field exclusivity and transport-specific fields;
 - missing, absolute, escaping, and symlinked sources;
@@ -102,18 +103,18 @@ Assertions distinguish:
 Build the actual `skillet` binary and run it with a temporary `HOME` and agent-home environment variables. For each
 agent:
 
-1. Create a manifest containing all four resource classes and minimal valid native bundles.
-2. Run `skillet <agent>`; verify the semantic diff, zero filesystem mutations, and exit 0.
-3. Run `skillet <agent> apply`; verify exit 0 and decode every expected native target or verify the expected management
-   command and postcondition.
+1. Create a manifest selecting that agent and containing all four resource classes and minimal valid native bundles.
+2. Run `skillet`; verify the semantic diff, zero filesystem mutations, and exit 0.
+3. Run `skillet apply`; verify exit 0 and decode every expected native target or verify the expected management command
+   and postcondition.
 4. Run Plan again; verify no changes.
 5. Add a conflict and verify both commands exit 2 and Apply performs no mutations.
 6. Introduce malformed native JSON/TOML and verify exit 1 with the native path in the error.
 7. Verify an unrelated project directory and its `AGENTS.md` remain untouched.
 
-Also verify `--file` anchors local sources to the manifest directory, unknown agents and extra arguments exit 2, MCP
-secrets never appear in captured output or forwarded command diagnostics, and partial apply failures include their
-report.
+Also verify `--file` anchors local sources to the manifest directory, `target.path` takes precedence over the
+agent-home environment variable, missing or unknown target agents and extra arguments exit 2, MCP secrets never appear
+in captured output or forwarded command diagnostics, and partial apply failures include their report.
 
 CLI wiring tests add a GitHub skill and plugin through the fake HTTP transport for every agent. Verify that Plan makes
 no filesystem changes, output includes the resolved commit, Apply acquires before the lock and downloads only once, and

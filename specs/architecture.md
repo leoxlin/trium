@@ -4,9 +4,9 @@ Status: proposed
 
 ## Purpose
 
-Skillet is a Go CLI that reconciles selected resources from one versioned manifest into the per-user configuration of
-Codex, Claude Code, and Kimi Code. Its primary seam is Plan/Apply: planning produces a semantic diff without changing
-the machine; applying recomputes that diff under a lock and installs the changes.
+Skillet is a Go CLI that reconciles selected resources from one versioned manifest into one per-user Codex, Claude Code,
+or Kimi Code environment. Its primary seam is Plan/Apply: planning produces a semantic diff without changing the
+machine; applying recomputes that diff under a lock and installs the changes.
 
 This document describes the implementation design. Command examples and field definitions are interface contracts, not
 end-user documentation.
@@ -15,6 +15,8 @@ end-user documentation.
 
 - The initial scope is the current user's agent environments, not project, enterprise-managed, cloud, or remote
   configuration.
+- Every manifest targets exactly one agent. An optional target path overrides the selected agent's home; otherwise its
+  environment variable and default home are used.
 - Skills and plugins come from local files relative to the skillet file or from a directory in a public GitHub
   repository. Context segments remain local. Remote configuration targets are outside version 1.
 - MCP declarations support stdio and streamable HTTP. Hook management is outside version 1; existing native hooks remain
@@ -89,10 +91,12 @@ validation in one module instead of duplicating them across three agents and two
 ## Reconciliation flow
 
 1. The CLI selects `skillet.yaml` or the path supplied by the global `--file` option.
-2. The skillet module decodes and statically validates the complete document. It resolves local sources and acquires
-   each declared GitHub source once into memory, then validates bundle content and computes semantic fingerprints.
-3. The selected agent factory discovers concrete per-user targets. Environment discovery occurs only in this factory;
-   adapters receive explicit paths.
+2. The skillet module decodes and statically validates the complete document, including its single `target`. It resolves
+   local sources and acquires each declared GitHub source once into memory, then validates bundle content and computes
+   semantic fingerprints.
+3. The CLI selects the agent factory named by `target.agent`. The factory resolves the optional `target.path` override,
+   then the agent-home environment variable and default, and discovers concrete per-user targets. Environment discovery
+   occurs only in this factory; adapters receive explicit paths.
 4. The engine calls `Plan` for every resource class in fixed order: skills, plugins, MCPs, context.
 5. Each resource adapter scans its writable user-scope targets, decodes native state, validates requested capabilities,
    and returns semantic changes plus target digests. Resource planning performs no acquisition or network requests.
@@ -151,8 +155,9 @@ See [engine.md](engine.md) for command and failure contracts.
   links, and special files in the selected bundle are rejected; unrelated archive entries are ignored. Skillet does not
   run `git`, clone hooks, submodule commands, credential helpers, or any acquired content. Plan retains no temporary
   extraction files.
-- Target paths are discovered only from trusted agent-home environment variables and explicit constructor configuration,
-  never from manifest fields.
+- Target paths come only from the manifest's explicit `target.path`, trusted agent-home environment variables, and
+  explicit constructor configuration. Manifest overrides must be absolute or start with `~/`; relative paths, empty
+  paths, and control characters are rejected during manifest validation.
 - Plan makes no mutations. Only the loader may make direct network requests, only for declared GitHub sources, and
   before agent discovery; resource planning and local-only commands make none. An Apply adapter may invoke a fixed
   native management executable and argument vector without a shell; it must capture and redact diagnostics and report

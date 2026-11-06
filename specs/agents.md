@@ -23,14 +23,15 @@ conflict. It must not silently weaken those guarantees.
 
 ## Common discovery and scan scope
 
-Agent factories resolve paths from the process environment, then pass an immutable target struct to the constructor.
-Tests construct targets directly.
+The manifest's `target.agent` selects one agent factory. Its optional `target.path` overrides that agent's home
+directory; otherwise the factory resolves the process environment and default below, then passes an immutable target
+struct to the constructor. A manifest path must be absolute or start with `~/`. Tests construct targets directly.
 
 - Codex: `CODEX_HOME`, defaulting to `~/.codex`.
 - Claude: `CLAUDE_CONFIG_DIR`, defaulting to `~/.claude`. User-scope MCP storage remains the separate `~/.claude.json`
   file.
 - Kimi: `KIMI_CODE_HOME`, defaulting to `~/.kimi-code`.
-- `HOME` is resolved through the OS user abstraction, not string interpolation in adapters.
+- `~` and `HOME` are resolved through the OS user abstraction, not string interpolation in adapters.
 
 Adapters scan writable user-scope sources needed for reconciliation. They do not merge project, admin, built-in, synced,
 or plugin-provided catalogs into the result. This prevents a read-only or higher-precedence resource from being mistaken
