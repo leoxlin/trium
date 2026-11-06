@@ -18,8 +18,7 @@ Use table-driven tests for:
   rejection of `path` or `ref` with local sources;
 - skill frontmatter validation and name agreement;
 - deterministic bundle hashes despite file order, timestamps, non-executable mode changes, and source location;
-- executable-bit and file-content hash changes;
-- context UTF-8, line-ending, trailing-newline, and marker validation.
+- executable-bit and file-content hash changes.
 
 Run the loader twice with differently ordered filesystem entries and require identical desired values and fingerprints.
 An identical local directory and GitHub archive must produce the same desired bundle and fingerprint.
@@ -39,9 +38,9 @@ entries disappear. Confirm that equal semantic values with different native repr
 
 ### Plan and rendering
 
-Golden tests cover stable grouping and sorting, all actions, empty diffs, conflict summaries, field-level changes,
-context text diffs, and redaction of every MCP environment/header value. Tests assert that Plan leaves a complete
-temporary filesystem byte-for-byte unchanged, including absence of lock, backup, and newly created parent directories.
+Golden tests cover stable grouping and sorting, all actions, empty diffs, conflict summaries, field-level changes, and
+redaction of every MCP environment/header value. Tests assert that Plan leaves a complete temporary filesystem
+byte-for-byte unchanged, including absence of lock, backup, and newly created parent directories.
 
 ## Adapter contract suite
 
@@ -63,11 +62,10 @@ structs. Every agent must pass the same behavioral cases:
 
 Adapter-specific cases add:
 
-- **Codex:** shared skill root, disabled skill conflict, HTTP/TOML field mapping, and `AGENTS.override.md` conflict.
-- **Claude:** reserved/synced skill protection, explicit HTTP `type`, top-level user MCP mapping, settings preservation,
-  and user `CLAUDE.md` targeting.
-- **Kimi:** relocated home isolation, camelCase MCP fields, plugin `installed.json` preservation, and global
-  `AGENTS.md` targeting.
+- **Codex:** shared skill root, disabled skill conflict, and HTTP/TOML field mapping.
+- **Claude:** reserved/synced skill protection, explicit HTTP `type`, top-level user MCP mapping, and settings
+  preservation.
+- **Kimi:** relocated home isolation, camelCase MCP fields, and plugin `installed.json` preservation.
 
 ## Native fixtures
 
@@ -77,8 +75,7 @@ Keep small agent-owned JSON/TOML/plugin registry fixtures representing supported
 - update preserves unknown settings and unrelated records;
 - transport changes remove only obsolete managed fields;
 - malformed shapes and duplicate keys fail with path context;
-- plugin bundle/registry disagreement and external ownership become conflicts;
-- context updates preserve unmanaged bytes exactly.
+- plugin bundle/registry disagreement and external ownership become conflicts.
 
 Fixture tests may cover private codecs, but they supplement rather than replace the public contract suite.
 
@@ -103,7 +100,7 @@ Assertions distinguish:
 Build the actual `skillet` binary and run it with a temporary `HOME` and agent-home environment variables. For each
 agent:
 
-1. Create `$HOME/.config/skillet.yaml`, selecting that agent and containing all four resource classes and minimal valid
+1. Create `$HOME/.config/skillet.yaml`, selecting that agent and containing all three resource classes and minimal valid
    native bundles.
 2. From a working directory without `skillet.yaml`, run `skillet`; verify that it loads the default manifest, produces
    the semantic diff, makes zero filesystem mutations, and exits 0.

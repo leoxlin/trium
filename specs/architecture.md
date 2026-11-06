@@ -18,7 +18,7 @@ end-user documentation.
 - Every manifest targets exactly one agent. An optional target path overrides the selected agent's home; otherwise its
   environment variable and default home are used.
 - Skills and plugins come from local files relative to the skillet file or from a directory in a public GitHub
-  repository. Context segments remain local. Remote configuration targets are outside version 1.
+  repository. Remote configuration targets are outside version 1.
 - MCP declarations support stdio and streamable HTTP. Hook management is outside version 1; existing native hooks remain
   unmanaged. Other native capabilities remain representable in native configuration but are not managed by Skillet.
 - A skillet is additive and corrective. It adds or updates named resources but never deletes a resource merely because
@@ -66,11 +66,11 @@ internal/skillet ───> internal/resource <─── internal/agent
 | `internal/cli`           | Argument dispatch, output rendering, wiring                                        | Reconciliation algorithms         |
 | `internal/skillet`       | Strict YAML decoding, local/GitHub acquisition, validation, desired fingerprints   | Agent paths and formats           |
 | `internal/resource`      | Resource values, Plan/Apply interfaces, changes, reports, shared semantic differ   | Any specific agent                |
-| `internal/agent`         | Agent interface and the set of four resource interfaces                            | CLI or manifest decoding          |
+| `internal/agent`         | Agent interface and the set of three resource interfaces                           | CLI or manifest decoding          |
 | `internal/engine`        | Deterministic orchestration, apply locking, conflict preflight, result aggregation | Native serialization              |
-| `internal/agents/codex`  | Codex discovery, codecs, all four resource adapters                                | Other agents                      |
-| `internal/agents/claude` | Claude discovery, codecs, all four resource adapters                               | Other agents                      |
-| `internal/agents/kimi`   | Kimi discovery, codecs, all four resource adapters                                 | Other agents                      |
+| `internal/agents/codex`  | Codex discovery, codecs, all three resource adapters                               | Other agents                      |
+| `internal/agents/claude` | Claude discovery, codecs, all three resource adapters                              | Other agents                      |
+| `internal/agents/kimi`   | Kimi discovery, codecs, all three resource adapters                                | Other agents                      |
 
 Agent packages may share unexported filesystem and structured-file helpers through an internal package. Resource
 semantics must remain in the agent adapter; a shared helper must not turn into a lowest-common-denominator agent model.
@@ -98,7 +98,7 @@ validation in one module instead of duplicating them across three agents and two
 3. The CLI selects the agent factory named by `target.agent`. The factory resolves the optional `target.path` override,
    then the agent-home environment variable and default, and discovers concrete per-user targets. Environment discovery
    occurs only in this factory; adapters receive explicit paths.
-4. The engine calls `Plan` for every resource class in fixed order: skills, plugins, MCPs, context.
+4. The engine calls `Plan` for every resource class in fixed order: skills, plugins, MCPs.
 5. Each resource adapter scans its writable user-scope targets, decodes native state, validates requested capabilities,
    and returns semantic changes plus target digests. Resource planning performs no acquisition or network requests.
 6. The plan command renders changes and conflicts. It creates no directories, lock files, backups, caches, or native
@@ -118,7 +118,6 @@ Skillet manages only the intersection of the manifest and each agent's writable 
   bundle. Sibling bundles are untouched.
 - **MCPs:** a declared name owns the portable fields defined by the schema. Unrecognized native fields on the same entry
   are preserved when the agent format permits them.
-- **Context:** a declared name owns only the bytes between its marker pair. Text outside markers is preserved exactly.
 - **Absent manifest entries:** no action. Version 1 has no prune operation.
 
 An existing resource with the same name is compared by semantic fingerprint, not source path, modification time, or
@@ -140,8 +139,7 @@ imported into standalone resource state.
   resource classes and reports earlier successful changes and irreversible native side effects; there is no claim of a
   cross-resource transaction.
 - Unrelated settings are preserved semantically. Byte-for-byte formatting and comments in rewritten JSON/TOML files are
-  not guaranteed; original bytes remain in the backup. Context text outside markers is the exception and is preserved
-  byte-for-byte.
+  not guaranteed; original bytes remain in the backup.
 
 See [engine.md](engine.md) for command and failure contracts.
 

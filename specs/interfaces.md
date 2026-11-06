@@ -1,18 +1,17 @@
 # Interfaces and module contracts
 
-The design uses small Go interfaces at real seams: four resource classes vary independently of three agent
+The design uses small Go interfaces at real seams: three resource classes vary independently of three agent
 implementations. Planning and applying behavior, rather than native file access, is the public resource interface.
 
 ## Resource values
 
-`internal/resource` defines `Skill`, `Plugin`, `MCP`, `ContextSegment`, and `Desired`.
+`internal/resource` defines `Skill`, `Plugin`, `MCP`, and `Desired`.
 
 ```go
 type Desired struct {
     Skills  []Skill
     Plugins []Plugin
     MCPs    []MCP
-    Context []ContextSegment
 }
 
 type Digest [32]byte
@@ -59,13 +58,9 @@ type Plugins interface {
 type MCPs interface {
     Resource[MCP]
 }
-
-type ContextSegments interface {
-    Resource[ContextSegment]
-}
 ```
 
-The four named interfaces make constructor requirements explicit and prevent accidentally passing changes to the wrong
+The three named interfaces make constructor requirements explicit and prevent accidentally passing changes to the wrong
 adapter. They share behavior without sharing agent-specific implementation.
 
 ### `Plan`
@@ -158,7 +153,6 @@ type Plan struct {
     Skills  resource.ChangeSet[resource.Skill]
     Plugins resource.ChangeSet[resource.Plugin]
     MCPs    resource.ChangeSet[resource.MCP]
-    Context resource.ChangeSet[resource.ContextSegment]
 }
 ```
 
@@ -173,7 +167,6 @@ type Resources struct {
     Skills  resource.Skills
     Plugins resource.Plugins
     MCPs    resource.MCPs
-    Context resource.ContextSegments
 }
 
 type Agent interface {
@@ -183,7 +176,7 @@ type Agent interface {
 }
 ```
 
-All four fields are required for Codex, Claude, and Kimi. A nil field is a construction error, not an implicit
+All three fields are required for Codex, Claude, and Kimi. A nil field is a construction error, not an implicit
 capability skip. Future agents with genuinely unsupported resource classes should return conflict-producing adapters so
 requested resources are never silently ignored.
 
@@ -225,7 +218,7 @@ conflicts are accumulated so the CLI can show all actionable problems.
 1. Acquires and defers release of the agent lock.
 2. Recomputes the complete plan under that lock.
 3. Returns the plan without writes if any class contains a conflict.
-4. Applies non-empty classes in skills, plugins, MCPs, context order.
+4. Applies non-empty classes in skills, plugins, MCPs order.
 5. Stops on the first operational error and returns the plan and partial report alongside the error.
 
 The aggregate report includes the plan that was actually applied. There is no interface for applying a stale or

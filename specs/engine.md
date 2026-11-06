@@ -36,9 +36,9 @@ There is no `DELETE`. Resources absent from the manifest do not appear in the di
 
 ### Output
 
-Output is deterministic, plain text, and grouped in skills, plugins, MCPs, context order. Entries are sorted by name
-within each group. Paths are absolute after target discovery. Colors, if added later, must not change content and must
-be disabled for non-terminal output.
+Output is deterministic, plain text, and grouped in skills, plugins, MCPs order. Entries are sorted by name within
+each group. Paths are absolute after target discovery. Colors, if added later, must not change content and must be
+disabled for non-terminal output.
 
 Example shape:
 
@@ -50,18 +50,16 @@ skills/review-pr          UPDATE  content differs
 plugins/team-workflows    ADD     install and enable local plugin
 mcps/context7             UPDATE  args changed
 mcps/internal-docs        UPDATE  headers changed (values redacted)
-context/working-agreements UPDATE /home/me/.codex/AGENTS.md
 plugins/legacy            CONFLICT marketplace installation is externally managed
 
-Summary: 1 add, 4 update, 4 unchanged, 1 conflict
+Summary: 1 add, 3 update, 4 unchanged, 1 conflict
 Plan only; no changes applied.
 ```
 
-The summary counts are illustrative and must be computed from actual rows. Context additions and updates include a
-unified text diff of the managed segment. MCP changes display field-level before/after values. Skill and plugin changes
-display fingerprints and source descriptions. A GitHub description includes repository, bundle path, requested ref, and
-resolved commit; a location-only change with equal content remains unchanged. Verbose per-file diffs are outside
-version 1.
+The summary counts are illustrative and must be computed from actual rows. MCP changes display field-level before/after
+values. Skill and plugin changes display fingerprints and source descriptions. A GitHub description includes repository,
+bundle path, requested ref, and resolved commit; a location-only change with equal content remains unchanged. Verbose
+per-file diffs are outside version 1.
 
 Values of MCP `env` and `headers` are always rendered as `<redacted>`. Their key names and changed/unchanged state
 remain visible. No credential file or bearer environment variable is read to produce a diff.
@@ -79,7 +77,7 @@ Apply is not Plan with a writing flag bolted onto a stale result. It performs th
 4. Render that plan.
 5. If any conflict exists, release the lock and make no mutations.
 6. Preflight each non-empty change set and verify all captured target digests.
-7. Apply classes in skills, plugins, MCPs, context order, skipping empty classes.
+7. Apply classes in skills, plugins, MCPs order, skipping empty classes.
 8. Render applied items, backups, warnings, and any partial failure.
 9. Release the lock.
 
@@ -108,7 +106,6 @@ Direct file operations additionally:
   place.
 - For a plugin, treat bundle and registry as one logical write and restore both if the second replacement fails.
 - Preserve existing file mode where practical; use `0600` for new JSON/TOML state and `0700` for `.skillet` directories.
-  Context files use `0644` when newly created.
 
 Native management commands additionally:
 

@@ -31,7 +31,3 @@ mcps:
     headers:
       X-Client: skillet-example
     bearer_token_env: INTERNAL_DOCS_TOKEN
-
-context:
-  - name: team-conventions
-    source: context/team-conventions.md

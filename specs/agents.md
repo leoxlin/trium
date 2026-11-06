@@ -1,6 +1,6 @@
 # Agents
 
-Codex, Claude Code, and Kimi Code each have one package implementing all four resource interfaces.
+Codex, Claude Code, and Kimi Code each have one package implementing all three resource interfaces.
 
 ## Execution strategy
 
@@ -51,10 +51,6 @@ for a writable standalone installation.
   - Codex: `$CODEX_HOME/config.toml`
   - Claude: `~/.claude.json`, top-level `mcpServers`
   - Kimi: `$KIMI_CODE_HOME/mcp.json`, top-level `mcpServers`
-- **Context**
-  - Codex: `$CODEX_HOME/AGENTS.md`
-  - Claude: `$CLAUDE_CONFIG_DIR/CLAUDE.md`
-  - Kimi: `$KIMI_CODE_HOME/AGENTS.md`
 - **Apply lock**
   - Codex: `$CODEX_HOME/.skillet/apply.lock`
   - Claude: `$CLAUDE_CONFIG_DIR/.skillet/apply.lock`
@@ -135,19 +131,6 @@ For all agents, the scanner distinguishes missing portable fields from native fi
 Formatting, key order, and explicit empty defaults do not create changes. Existing malformed entries return an
 operational parse error; valid entries with unsupported requested semantics produce conflicts.
 
-## Context segments
-
-All adapters use the marker algorithm in the schema document and preserve bytes outside managed segments.
-
-- Codex writes `AGENTS.md`. If a non-empty `AGENTS.override.md` exists in Codex home, planning reports a conflict
-  because Codex would read the override instead of the modified base file.
-- Claude writes user-scope `CLAUDE.md`, not `AGENTS.md`; Claude's AGENTS.md discovery is project-scoped.
-- Kimi writes its global `AGENTS.md` under `KIMI_CODE_HOME`, not the generic `~/.agents/AGENTS.md` file.
-
-Missing instruction files are empty state. A target that is a symlink, directory, or non-regular file is a conflict.
-Adapter-specific instruction size limits are validated during planning when known; exceeding one is a conflict rather
-than a partially installed segment.
-
 ## Structured-file compatibility
 
 Native JSON and TOML codecs decode into typed known fields plus preserved unknown fields. They must:
@@ -159,19 +142,16 @@ Native JSON and TOML codecs decode into typed known fields plus preserved unknow
 - include the native path and structural location in errors;
 - write deterministic output and retain existing file permissions when replacing a file.
 
-Semantic preservation does not guarantee retention of TOML/JSON whitespace or comments. Context files are handled
-separately and retain all unmanaged bytes.
+Semantic preservation does not guarantee retention of TOML/JSON whitespace or comments.
 
 ## Official format references
 
 The initial mappings are based on these agent-owned references:
 
 - Codex: [skills](https://developers.openai.com/codex/skills), [MCP](https://developers.openai.com/codex/mcp),
-  [AGENTS.md](https://developers.openai.com/codex/guides/agents-md),
   [plugins](https://developers.openai.com/codex/plugins).
 - Claude: [skills](https://code.claude.com/docs/en/skills), [MCP](https://code.claude.com/docs/en/mcp),
-  [settings](https://code.claude.com/docs/en/settings), [plugins](https://code.claude.com/docs/en/plugins),
-  [memory](https://code.claude.com/docs/en/memory).
+  [settings](https://code.claude.com/docs/en/settings), [plugins](https://code.claude.com/docs/en/plugins).
 - Kimi: [data locations](https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/data-locations.html),
   [skills](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html),
   [MCP](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/mcp.html),

@@ -8,7 +8,7 @@
 
 ## What's inside
 
-A skillet manifest reconciles skills, plugins, MCP servers, and context segments into one agent environment. See
+A skillet manifest reconciles skills, plugins, and MCP servers into one agent environment. See
 [`skillet.example.yaml`](skillet.example.yaml) for a complete example and
 [`skillet.schema.yaml`](skillet.schema.yaml) for the full format.
 

@@ -44,11 +44,6 @@ properties:
     items:
       $ref: '#/$defs/mcp'
     default: []
-  context:
-    type: array
-    items:
-      $ref: '#/$defs/contextSegment'
-    default: []
 $defs:
   name:
     type: string
@@ -164,17 +159,6 @@ $defs:
                 - env
             - required:
                 - cwd
-  contextSegment:
-    type: object
-    additionalProperties: false
-    required:
-      - name
-      - source
-    properties:
-      name:
-        $ref: '#/$defs/name'
-      source:
-        $ref: '#/$defs/localSource'
 $comment: >-
   Strict YAML decoding must reject duplicate mapping keys. Loader validation must reject duplicate names within each
   resource class and enforce path containment, symlink restrictions, and acquired-content requirements.
