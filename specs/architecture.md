@@ -61,20 +61,26 @@ internal/engine ────────────────┘
 internal/manifest ───> internal/resource <─── internal/agents
 ```
 
-| Module                   | Responsibility                                                                     | Must not know                     |
-| ------------------------ | ---------------------------------------------------------------------------------- | --------------------------------- |
-| `cmd/skillet`            | Process entry point and exit status                                                | Manifest or native config details |
-| `internal/cli`           | Argument dispatch, output rendering, wiring                                        | Reconciliation algorithms         |
-| `internal/manifest`       | Strict YAML decoding, source resolution, validation, desired fingerprints   | Agent paths and formats           |
-| `internal/resource`      | Resource values, Plan/Apply interfaces, changes, reports, shared semantic differ   | Any specific agent                |
-| `internal/agents`        | Agent interface, resource set, apply locking, and shared target paths              | CLI or manifest decoding          |
-| `internal/engine`        | Deterministic orchestration, apply locking, conflict preflight, result aggregation | Native serialization              |
-| `internal/agents/codex`  | Codex discovery, codecs, all three resource adapters                               | Other agents                      |
-| `internal/agents/claude` | Claude discovery, codecs, all three resource adapters                              | Other agents                      |
-| `internal/agents/kimi`   | Kimi discovery, codecs, all three resource adapters                                | Other agents                      |
+| Module                   | Responsibility                                                                     | Must not know                      |
+| ------------------------ | ---------------------------------------------------------------------------------- | ---------------------------------- |
+| `cmd/skillet`            | Process entry point and exit status                                                | Manifest or native config details  |
+| `internal/cli`           | Argument dispatch, output rendering, wiring                                        | Reconciliation algorithms          |
+| `internal/manifest`      | Strict YAML decoding, source resolution, validation, desired fingerprints          | Agent paths and formats            |
+| `internal/plugin`        | Native plugin manifest identity and version validation                             | Standalone skills and target state |
+| `internal/resource`      | Resource values, Plan/Apply interfaces, changes, reports, shared semantic differ   | Any specific agent                 |
+| `internal/agents`        | Agent interface, resource set, apply locking, and shared target paths              | CLI or manifest decoding           |
+| `internal/engine`        | Deterministic orchestration, apply locking, conflict preflight, result aggregation | Native serialization               |
+| `internal/agents/codex`  | Codex discovery, codecs, all three resource adapters                               | Other agents                       |
+| `internal/agents/claude` | Claude discovery, codecs, all three resource adapters                              | Other agents                       |
+| `internal/agents/kimi`   | Kimi discovery, codecs, all three resource adapters                                | Other agents                       |
 
 Agent packages may share unexported filesystem and structured-file helpers through an internal package. Resource
 semantics must remain in the agent adapter; a shared helper must not turn into a lowest-common-denominator agent model.
+
+Standalone skills and plugins have separate resource types, manifest loaders, and adapters. Native plugin manifest
+metadata lives in `internal/plugin`; `internal/resource` remains independent of agent formats.
+`internal/manifest/bundle.go` shares local and Git acquisition. `internal/agents/shared/filesystem.go` owns staging,
+backups, verification, and rollback for both stores. Agent-specific plugin registry codecs stay in each agent package.
 
 Source acquisition and validation happen before reconciliation. Shared acquisition helpers hide transport and resource
 lifecycles; agent adapters receive validated snapshots without knowing how they were acquired.

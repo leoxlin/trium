@@ -67,7 +67,8 @@ $defs:
       - pattern: '^(?:git:)?(?:[^/@:\s]+@)?(?!git:|github:|file:)[^/:\s]+:[^:\s]+$'
     $comment: >-
       The value local, a Git URL, github:owner/repo, github.com/owner/repo, or owner/repo shorthand.
-      With source local or omitted, path selects a local skill; otherwise path selects a directory in the repository.
+      With source local or omitted, path selects a local skill or plugin bundle; otherwise path selects a directory
+      in the repository.
   repositoryPath:
     type: string
     minLength: 1

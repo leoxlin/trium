@@ -6,25 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"unicode"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/leoxlin/skillets/internal/resource"
 )
 
-var (
-	namePattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
-	schemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
-	githubPattern = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*$`)
-	scpPattern    = regexp.MustCompile(`^(?:[^/@:\s]+@)?[^/:\s]+:[^:\s]+$`)
-)
+var namePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
 type ValidationError struct {
 	Field   string
@@ -47,11 +39,11 @@ type Manifest struct {
 }
 
 type document struct {
-	Version int         `yaml:"version"`
-	Target  yaml.Node   `yaml:"target"`
-	Skills  []skillDecl `yaml:"skills"`
-	Plugins []yaml.Node `yaml:"plugins"`
-	MCPs    []yaml.Node `yaml:"mcps"`
+	Version int          `yaml:"version"`
+	Target  yaml.Node    `yaml:"target"`
+	Skills  []bundleDecl `yaml:"skills"`
+	Plugins []bundleDecl `yaml:"plugins"`
+	MCPs    []yaml.Node  `yaml:"mcps"`
 }
 
 type targetDecl struct {
@@ -59,7 +51,7 @@ type targetDecl struct {
 	Path  string `yaml:"path"`
 }
 
-type skillDecl struct {
+type bundleDecl struct {
 	Name   string `yaml:"name"`
 	Source string `yaml:"source"`
 	Path   string `yaml:"path"`
@@ -131,9 +123,6 @@ func Load(ctx context.Context, path string) (Manifest, error) {
 		seenTargets[target] = true
 		selected = append(selected, target)
 	}
-	if len(doc.Plugins) != 0 {
-		return Manifest{}, invalid("plugins", "plugins are not supported by this tracer bullet")
-	}
 	if len(doc.MCPs) != 0 {
 		return Manifest{}, invalid("mcps", "MCPs are not supported by this tracer bullet")
 	}
@@ -161,164 +150,26 @@ func Load(ctx context.Context, path string) (Manifest, error) {
 		}
 		manifest.Desired.Skills = append(manifest.Desired.Skills, skill)
 	}
+	seenPlugins := make(map[string]bool)
+	for i, declaration := range doc.Plugins {
+		field := fmt.Sprintf("plugins[%d]", i)
+		if !namePattern.MatchString(declaration.Name) {
+			return Manifest{}, invalid(field+".name", "must match "+namePattern.String())
+		}
+		if seenPlugins[declaration.Name] {
+			return Manifest{}, invalid(field+".name", "duplicate plugin name")
+		}
+		seenPlugins[declaration.Name] = true
+		if err := ctx.Err(); err != nil {
+			return Manifest{}, err
+		}
+		plugin, err := loadPlugin(ctx, filepath.Dir(absolute), declaration, selected, field)
+		if err != nil {
+			return Manifest{}, err
+		}
+		manifest.Desired.Plugins = append(manifest.Desired.Plugins, plugin)
+	}
 	return manifest, nil
-}
-
-func loadSkill(ctx context.Context, manifestDir string, declaration skillDecl, field string) (resource.Skill, error) {
-	if declaration.Source != "" && declaration.Source != "local" {
-		repository, err := repositorySource(declaration.Source)
-		if err != nil {
-			return resource.Skill{}, invalid(field+".source", err.Error())
-		}
-		return loadGitSkill(ctx, manifestDir, declaration, repository, field)
-	}
-	if declaration.Ref != "" {
-		return resource.Skill{}, invalid(field+".ref", "is only valid with a repository source")
-	}
-	if declaration.Path == "" {
-		return resource.Skill{}, invalid(field+".path", "is required when source is local or omitted")
-	}
-	root, err := sourcePath(manifestDir, declaration.Path)
-	if err != nil {
-		return resource.Skill{}, invalid(field+".path", err.Error())
-	}
-	files, err := resource.Snapshot(root)
-	if err != nil {
-		return resource.Skill{}, invalid(field+".path", err.Error())
-	}
-	return skillFromFiles(declaration.Name, root, files, field+".path")
-}
-
-func repositorySource(source string) (string, error) {
-	if hasControl(source) || strings.TrimSpace(source) == "" || strings.HasPrefix(source, "-") {
-		return "", errors.New("must be a Git URL or GitHub shorthand without control characters")
-	}
-	if strings.HasPrefix(source, "github:") || strings.HasPrefix(source, "github.com/") {
-		repository := strings.TrimPrefix(strings.TrimPrefix(source, "github:"), "github.com/")
-		if !githubPattern.MatchString(repository) {
-			return "", errors.New("GitHub shorthand must be owner/repo")
-		}
-		return "https://github.com/" + repository, nil
-	}
-	if githubPattern.MatchString(source) {
-		return "https://github.com/" + source, nil
-	}
-	if strings.HasPrefix(source, "git:") && !strings.HasPrefix(source, "git://") {
-		source = strings.TrimPrefix(source, "git:")
-	}
-	source = strings.TrimPrefix(source, "git+")
-	if strings.Contains(source, "://") {
-		parsed, err := url.Parse(source)
-		if err != nil || parsed.Host == "" {
-			return "", errors.New("invalid Git repository URL")
-		}
-		switch parsed.Scheme {
-		case "https", "http", "ssh", "git":
-			return source, nil
-		default:
-			return "", errors.New("unsupported Git repository URL scheme")
-		}
-	}
-	if scpPattern.MatchString(source) && !strings.HasPrefix(source, "./") && !strings.HasPrefix(source, "../") {
-		return source, nil
-	}
-	return "", errors.New("must be a Git URL or GitHub shorthand; use path for a local skill")
-}
-
-func loadGitSkill(ctx context.Context, manifestDir string, declaration skillDecl, repository, field string) (resource.Skill, error) {
-	ref := declaration.Ref
-	if ref == "" {
-		ref = "HEAD"
-	}
-	if hasControl(ref) || strings.ContainsFunc(ref, unicode.IsSpace) || strings.HasPrefix(ref, "-") ||
-		strings.ContainsAny(ref, ":*?[^~\\") || strings.Contains(ref, "..") || strings.Contains(ref, "@{") {
-		return resource.Skill{}, invalid(field+".ref", "must be a branch, tag, or full commit hash")
-	}
-	bundlePath := path.Clean(declaration.Path)
-	if hasControl(declaration.Path) || strings.ContainsAny(declaration.Path, `\:`) || path.IsAbs(bundlePath) ||
-		bundlePath == ".." || strings.HasPrefix(bundlePath, "../") {
-		return resource.Skill{}, invalid(field+".path", "must stay inside the repository and contain no control characters")
-	}
-
-	source, files, err := resource.SnapshotGit(ctx, manifestDir, repository, ref, bundlePath)
-	if err != nil {
-		var unsafe *resource.UnsafePathError
-		if errors.As(err, &unsafe) {
-			return resource.Skill{}, invalid(field+".path", unsafe.Reason)
-		}
-		return resource.Skill{}, fmt.Errorf("%s.source: %w", field, err)
-	}
-	return skillFromFiles(declaration.Name, source, files, field+".source")
-}
-
-func skillFromFiles(name, source string, files []resource.File, field string) (resource.Skill, error) {
-	skillFile, ok := resource.FindFile(files, "SKILL.md")
-	if !ok {
-		return resource.Skill{}, invalid(field, "bundle must contain SKILL.md")
-	}
-	if err := validateFrontmatter(skillFile.Data, name); err != nil {
-		return resource.Skill{}, invalid(field+"/SKILL.md", err.Error())
-	}
-	return resource.NewSkill(name, source, files), nil
-}
-
-func sourcePath(manifestDir, source string) (string, error) {
-	if hasControl(source) || filepath.IsAbs(source) || schemePattern.MatchString(source) {
-		return "", errors.New("must be a relative path without control characters")
-	}
-	clean := filepath.Clean(source)
-	root := filepath.Join(manifestDir, clean)
-	relative, err := filepath.Rel(manifestDir, root)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", errors.New("must stay inside the manifest directory")
-	}
-	current := manifestDir
-	for _, component := range strings.Split(relative, string(filepath.Separator)) {
-		if component == "." || component == "" {
-			continue
-		}
-		current = filepath.Join(current, component)
-		info, err := os.Lstat(current)
-		if err != nil {
-			return "", err
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("%s is a symlink", current)
-		}
-	}
-	return root, nil
-}
-
-func validateFrontmatter(data []byte, expectedName string) error {
-	text := strings.ReplaceAll(string(data), "\r\n", "\n")
-	if !strings.HasPrefix(text, "---\n") {
-		return errors.New("must start with YAML frontmatter")
-	}
-	lines := strings.Split(text, "\n")
-	end := -1
-	for i := 1; i < len(lines); i++ {
-		if lines[i] == "---" {
-			end = i
-			break
-		}
-	}
-	if end == -1 {
-		return errors.New("frontmatter is not closed")
-	}
-	var metadata struct {
-		Name        string `yaml:"name"`
-		Description string `yaml:"description"`
-	}
-	if err := yaml.Unmarshal([]byte(strings.Join(lines[1:end], "\n")), &metadata); err != nil {
-		return fmt.Errorf("invalid frontmatter: %w", err)
-	}
-	if metadata.Name != expectedName {
-		return fmt.Errorf("frontmatter name %q does not match manifest name %q", metadata.Name, expectedName)
-	}
-	if strings.TrimSpace(metadata.Description) == "" {
-		return errors.New("frontmatter description is required")
-	}
-	return nil
 }
 
 func validateTargetPath(path string) error {

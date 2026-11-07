@@ -218,3 +218,40 @@ func TestClaudePlanApplyPlan(t *testing.T) {
 		})
 	}
 }
+
+func TestPluginOnlyCLI(t *testing.T) {
+	dir := t.TempDir()
+	home := filepath.Join(dir, "agent")
+	plugin := filepath.Join(dir, "plugin")
+	if err := os.Mkdir(plugin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, "kimi.plugin.json"), []byte(`{"name":"tools"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "skillet.yaml")
+	declaration := fmt.Sprintf("version: 1\ntarget: {agent: kimi, path: %q}\nplugins:\n  - name: tools\n    path: plugin\n", home)
+	if err := os.WriteFile(path, []byte(declaration), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range []string{"plan", "apply", "unchanged"} {
+		var stdout, stderr bytes.Buffer
+		args := []string{"--file", path}
+		if command == "apply" {
+			args = append(args, "apply")
+		}
+		if code := cli.Run(context.Background(), args, &stdout, &stderr); code != 0 {
+			t.Fatalf("%s exit %d: %s", command, code, stderr.String())
+		}
+		if command == "unchanged" {
+			if !strings.Contains(stdout.String(), "No changes (1 unchanged)") {
+				t.Fatalf("plan = %s", stdout.String())
+			}
+		} else if !strings.Contains(stdout.String(), "plugins/tools") || strings.Contains(stdout.String(), "skills/tools") {
+			t.Fatalf("output = %s", stdout.String())
+		}
+		if command == "apply" && !strings.Contains(stdout.String(), "Applied: plugins/tools") {
+			t.Fatalf("report = %s", stdout.String())
+		}
+	}
+}

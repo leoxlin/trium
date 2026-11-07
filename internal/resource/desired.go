@@ -1,5 +1,6 @@
 package resource
 
 type Desired struct {
-	Skills []Skill
+	Skills  []Skill
+	Plugins []Plugin
 }

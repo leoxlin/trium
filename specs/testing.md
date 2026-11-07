@@ -144,3 +144,11 @@ Before implementation is considered complete:
 - `go vet ./...` and the project's formatting check pass.
 - A repeated apply is idempotent for every resource class and agent.
 - Tests create artifacts only inside their temporary directories; repository test runs leave no generated files behind.
+
+## Implemented plugin checks
+
+- Local and Git plugin acquisition, native identity validation for all selected targets, and independent skill names.
+- Plan/apply/plan, enable-only updates, complete bundle replacement, and preservation of unrelated native settings.
+- Native registry and bundle drift, duplicate or external registrations, missing bundles, and symlinked ancestors.
+- Plugin preflight blocks skill writes; failed plugin verification restores its bundles and native registry bytes.
+- Plugin-only CLI plans and reports use the `plugins/` resource prefix.

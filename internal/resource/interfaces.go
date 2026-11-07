@@ -10,3 +10,5 @@ type Resource[T Item] interface {
 type Skills interface {
 	Resource[Skill]
 }
+
+type Plugins interface{ Resource[Plugin] }

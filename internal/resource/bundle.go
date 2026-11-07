@@ -35,30 +35,9 @@ type File struct {
 	Executable bool
 }
 
-type Skill struct {
-	Name   string
-	Source string
-	Files  []File
-	Hash   Digest
-}
-
-func NewSkill(name, source string, files []File) Skill {
-	files = cloneFiles(files)
-	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
-	return Skill{Name: name, Source: source, Files: files, Hash: HashFiles(files)}
-}
-
-func (s Skill) Key() string {
-	return s.Name
-}
-
-func (s Skill) Fingerprint() Digest {
-	return s.Hash
-}
-
 func HashFiles(files []File) Digest {
 	h := sha256.New()
-	h.Write([]byte("skillet-skill-v1\x00"))
+	h.Write([]byte("skillet-bundle-v1\x00"))
 	for _, file := range files {
 		var pathLength [4]byte
 		binary.BigEndian.PutUint32(pathLength[:], uint32(len(file.Path)))
@@ -85,7 +64,7 @@ func Snapshot(root string) ([]File, error) {
 		return nil, err
 	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, &UnsafePathError{Path: root, Reason: "skill bundle must be a real directory"}
+		return nil, &UnsafePathError{Path: root, Reason: "bundle must be a real directory"}
 	}
 
 	var files []File
@@ -101,7 +80,7 @@ func Snapshot(root string) ([]File, error) {
 			return err
 		}
 		if info.Mode()&os.ModeSymlink != 0 || (!info.IsDir() && !info.Mode().IsRegular()) {
-			return &UnsafePathError{Path: path, Reason: "skill bundles cannot contain links or special files"}
+			return &UnsafePathError{Path: path, Reason: "bundles cannot contain links or special files"}
 		}
 		if entry.IsDir() {
 			return nil
@@ -176,7 +155,7 @@ func SnapshotGit(ctx context.Context, workingDir, repositoryURL, ref, bundlePath
 	}
 	for _, entry := range bytes.Split(entries, []byte{0}) {
 		if bytes.HasPrefix(entry, []byte("160000 ")) {
-			return "", nil, &UnsafePathError{Path: bundlePath, Reason: "skill bundles cannot contain submodules"}
+			return "", nil, &UnsafePathError{Path: bundlePath, Reason: "bundles cannot contain submodules"}
 		}
 	}
 	archive, err := run("--git-dir="+repository, "archive", "--format=tar", tree)
@@ -201,7 +180,7 @@ func SnapshotGit(ctx context.Context, workingDir, repositoryURL, ref, bundlePath
 			continue
 		case tar.TypeReg:
 		default:
-			return "", nil, &UnsafePathError{Path: header.Name, Reason: "skill bundles cannot contain links or special files"}
+			return "", nil, &UnsafePathError{Path: header.Name, Reason: "bundles cannot contain links or special files"}
 		}
 		data, err := io.ReadAll(reader)
 		if err != nil {

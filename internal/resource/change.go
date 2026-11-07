@@ -57,6 +57,7 @@ type ApplyReport struct {
 }
 
 type AppliedItem struct {
+	Kind   string
 	Key    string
 	Action Action
 }

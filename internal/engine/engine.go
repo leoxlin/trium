@@ -10,11 +10,12 @@ import (
 )
 
 type Plan struct {
-	Skills resource.ChangeSet[resource.Skill]
+	Skills  resource.ChangeSet[resource.Skill]
+	Plugins resource.ChangeSet[resource.Plugin]
 }
 
 func (p Plan) HasConflicts() bool {
-	return p.Skills.HasConflicts()
+	return p.Skills.HasConflicts() || p.Plugins.HasConflicts()
 }
 
 type Engine struct{}
@@ -28,7 +29,18 @@ func (Engine) Plan(ctx context.Context, a agent.Agent, desired resource.Desired)
 	if err != nil {
 		return Plan{}, fmt.Errorf("plan skills: %w", err)
 	}
-	return Plan{Skills: skills}, nil
+	plan := Plan{Skills: skills}
+	if resources.Plugins == nil {
+		if len(desired.Plugins) > 0 {
+			return Plan{}, errors.New("agent has no plugin adapter")
+		}
+		return plan, nil
+	}
+	plan.Plugins, err = resources.Plugins.Plan(ctx, desired.Plugins)
+	if err != nil {
+		return Plan{}, fmt.Errorf("plan plugins: %w", err)
+	}
+	return plan, nil
 }
 
 func (e Engine) Apply(ctx context.Context, a agent.Agent, desired resource.Desired) (plan Plan, report resource.ApplyReport, err error) {
@@ -44,12 +56,20 @@ func (e Engine) Apply(ctx context.Context, a agent.Agent, desired resource.Desir
 	if err != nil || plan.HasConflicts() {
 		return plan, resource.ApplyReport{}, err
 	}
-	if !plan.Skills.HasChanges() {
-		return plan, resource.ApplyReport{}, nil
+	if plan.Skills.HasChanges() {
+		report, err = a.Resources().Skills.Apply(ctx, plan.Skills)
+		if err != nil {
+			return plan, report, fmt.Errorf("apply skills: %w", err)
+		}
 	}
-	report, err = a.Resources().Skills.Apply(ctx, plan.Skills)
-	if err != nil {
-		return plan, report, fmt.Errorf("apply skills: %w", err)
+	if plan.Plugins.HasChanges() {
+		pluginReport, applyErr := a.Resources().Plugins.Apply(ctx, plan.Plugins)
+		report.Applied = append(report.Applied, pluginReport.Applied...)
+		report.Backups = append(report.Backups, pluginReport.Backups...)
+		report.Warnings = append(report.Warnings, pluginReport.Warnings...)
+		if applyErr != nil {
+			return plan, report, fmt.Errorf("apply plugins: %w", applyErr)
+		}
 	}
 	return plan, report, nil
 }

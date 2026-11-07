@@ -15,7 +15,7 @@ func TestStoreSkillLifecycle(t *testing.T) {
 	ctx := context.Background()
 	root := filepath.Join(t.TempDir(), "skills")
 	backupRoot := filepath.Join(t.TempDir(), "backups")
-	store := &shared.Store{Root: root, BackupRoot: backupRoot}
+	store := &shared.SkillStore{Root: root, BackupRoot: backupRoot}
 	wanted := storeSkill("review", "first")
 
 	plan, err := store.Plan(ctx, []resource.Skill{wanted})
@@ -88,7 +88,7 @@ func TestStoreSkillLifecycle(t *testing.T) {
 func TestStoreRejectsConflictsAndDrift(t *testing.T) {
 	ctx := context.Background()
 	root := filepath.Join(t.TempDir(), "skills")
-	store := &shared.Store{Root: root, BackupRoot: filepath.Join(t.TempDir(), "backups")}
+	store := &shared.SkillStore{Root: root, BackupRoot: filepath.Join(t.TempDir(), "backups")}
 	wanted := storeSkill("review", "content")
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)

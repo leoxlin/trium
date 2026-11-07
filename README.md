@@ -8,8 +8,8 @@
 
 ## Tracer bullet
 
-The current implementation reconciles local and Git-sourced directory-form skills for Codex, Claude Code, and Kimi Code.
-Plugins and MCP servers remain in the design but are not implemented.
+The current implementation reconciles local and Git-sourced skills and plugins for Codex, Claude Code, and Kimi Code.
+MCP servers remain in the design but are not implemented.
 
 Build the CLI:
 
@@ -72,19 +72,48 @@ Supported source forms:
 | `git+https://example.com/skills.git` or `git+ssh://git@example.com/skills.git` | Explicit Git URL |
 
 `source` accepts `local`, repository URLs, and GitHub shorthand. Local filesystem paths and `file://` URLs are rejected.
-For a local skill, set `source: local` or omit `source`, and set `path`; `ref` requires a repository source. The `git` and
-`github` fields are not accepted.
+For a local skill, set `source: local` or omit `source`, and set `path`; `ref` requires a repository source.
+The `git` and `github` fields are not accepted.
 
 Git must be installed for repository sources. Existing Git authentication is used, with terminal credential prompts
 disabled. For repository sources, `path` defaults to the repository root, and `ref` defaults to the remote's `HEAD`;
 branches, tags, and full commit hashes are supported.
-Repository paths must remain inside the repository. Bundles must satisfy the same frontmatter rules as local skills;
-symlinks and submodules are rejected.
+Repository paths must remain inside the repository. Skill bundles must satisfy the same frontmatter rules as local
+skills; symlinks and submodules are rejected.
 
 Both preview and apply fetch the selected revision into a temporary bare repository, then read its Git archive into
 memory. Archive attributes such as `export-ignore` apply. Acquisition has a two-minute timeout and the temporary
 repository is removed before loading returns. No checkout, hooks, submodule updates, or skill scripts run. Each loaded
 snapshot is reused across all targets during that invocation.
+
+Plugins use the same source, path, and ref fields as skills:
+
+```yaml
+plugins:
+  - name: team-tools
+    source: local
+    path: plugins/team-tools
+```
+
+A plugin is a complete native bundle. It does not require a root `SKILL.md`, and its embedded skills remain inside
+that plugin. The native manifest must contain a matching name (or Kimi ID) for every selected target:
+
+| Agent | Required native manifest |
+| ----- | ------------------------ |
+| Codex | `.codex-plugin/plugin.json` |
+| Claude | `.claude-plugin/plugin.json` |
+| Kimi | `kimi.plugin.json` or `.kimi-plugin/plugin.json` |
+
+Applying installs and enables plugins. Codex and Claude use a local `skillet` marketplace under the selected agent home;
+Kimi uses its native local installation registry. Managed sources live under `<agent-home>/plugins/managed/<name>`.
+Codex also receives a native versioned cache copy. Older Codex cache versions are retained when versions change.
+Plugin code, hooks, and MCP servers may run in later agent sessions; Skillet does not execute them during installation.
+Restart or reload the agent to pick up changes.
+
+Only local installations at Skillet's managed paths are eligible for updates. Matching plugins from other marketplaces
+or scopes, missing managed bundles, duplicate registrations, and unsafe paths block apply before skill or plugin
+writes. Unrelated native settings and plugins are preserved. A skill and plugin can share a name without sharing
+installed files.
 
 When `target.path` is omitted, the agent's environment variable and default home are used:
 
@@ -106,7 +135,10 @@ skillet --file /path/to/skillet.yaml
 ```
 
 Planning leaves agent files unchanged. Applying takes a lock, rechecks the plan, retains backups under the selected
-agent's `.skillet/backups` directory, and replaces only declared skill bundles. Undeclared skills are left alone.
+agent's `.skillet/backups` directory, and replaces only declared skill and plugin bundles. Undeclared resources are
+left alone.
+Each resource class restores its own affected bundles and registry files if writing or verification fails. Earlier
+successful resource classes remain applied.
 
 The planned full manifest format is documented in [`skillet.schema.yaml`](skillet.schema.yaml).
 

@@ -7,7 +7,8 @@ import (
 )
 
 type Resources struct {
-	Skills resource.Skills
+	Skills  resource.Skills
+	Plugins resource.Plugins
 }
 
 type Agent interface {

@@ -79,7 +79,7 @@ func runTarget(ctx context.Context, selected agent.Agent, loaded manifest.Manife
 	runner := engine.Engine{}
 	if apply {
 		plan, report, err := runner.Apply(ctx, selected, loaded.Desired)
-		if plan.Skills.Changes != nil {
+		if plan.Skills.Changes != nil || plan.Plugins.Changes != nil {
 			renderPlan(stdout, selected.Name(), loaded.Path, plan)
 		}
 		if len(report.Applied) != 0 || len(report.Backups) != 0 || len(report.Warnings) != 0 {

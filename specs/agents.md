@@ -44,8 +44,8 @@ for a writable standalone installation.
   - Claude: `$CLAUDE_CONFIG_DIR/skills/<name>/`
   - Kimi: `$KIMI_CODE_HOME/skills/<name>/`
 - **Plugins**
-  - Codex: native local managed bundle and install/enabled registry under Codex home.
-  - Claude: native local managed bundle and install/enabled registry under Claude config.
+  - Codex: `$CODEX_HOME/plugins/managed/<name>/`, versioned cache, local marketplace, and `config.toml`.
+  - Claude: `$CLAUDE_CONFIG_DIR/plugins/managed/<name>/`, marketplace and install registries, and `settings.json`.
   - Kimi: `$KIMI_CODE_HOME/plugins/managed/<name>/` and `$KIMI_CODE_HOME/plugins/installed.json`.
 - **MCPs**
   - Codex: `$CODEX_HOME/config.toml`
@@ -96,7 +96,19 @@ preserve and back up the complete registry safely.
    Direct writes stage the complete bundle and update the local-install record. CLI-backed writes use fixed arguments
    and no shell. Both strategies capture target digests and verify the result through a fresh scan.
 
-Native manifest locations are adapter concerns:
+The current implementation writes native files directly:
+
+- Codex uses `plugins/.agents/plugins/marketplace.json`, `[marketplaces.skillet]`, and `[plugins."<name>@skillet"]` in
+  `config.toml`. Managed sources are copied to `plugins/cache/skillet/<name>/<version>/`; obsolete versions remain.
+- Claude uses `plugins/managed/.claude-plugin/marketplace.json`, `plugins/known_marketplaces.json`, version 2
+  `plugins/installed_plugins.json`, and `settings.json`'s `enabledPlugins`. Its user-scope IDs are `<name>@skillet`.
+- Kimi uses version 1 `plugins/installed.json` with `source: "local-path"`, a managed `root`, and `enabled: true`.
+
+Each adapter preserves unrelated native records and settings. Only local registrations pointing at Skillet's managed
+paths can be updated; other matching installations conflict. Missing or unsafe registries fail before writes.
+Native manifest identity and version decoding are shared through `internal/plugin`, separate from skill frontmatter.
+
+Native manifest locations:
 
 - Codex: `.codex-plugin/plugin.json`.
 - Claude: `.claude-plugin/plugin.json`.
