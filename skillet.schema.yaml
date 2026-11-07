@@ -56,20 +56,25 @@ $defs:
   name:
     type: string
     pattern: '^[a-z0-9][a-z0-9._-]{0,63}$'
-  localSource:
+  source:
     type: string
     minLength: 1
-    pattern: '^[^\\\x00-\x1F\x7F-\x9F]+$'
-    not:
-      pattern: '^(?:/|[A-Za-z]:|[A-Za-z][A-Za-z0-9+.-]*:)'
-    $comment: The loader must clean the path, enforce directory containment, and reject symlinks.
+    pattern: '^[^-\x00-\x1F\x7F-\x9F][^\x00-\x1F\x7F-\x9F]*$'
+    anyOf:
+      - const: local
+      - pattern: '^(?:git:)?(?:git\+)?(?:https?|ssh|git)://[^/\s]+'
+      - pattern: '^(?:github:|github\.com/)?[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*$'
+      - pattern: '^(?:git:)?(?:[^/@:\s]+@)?(?!git:|github:|file:)[^/:\s]+:[^:\s]+$'
+    $comment: >-
+      The value local, a Git URL, github:owner/repo, github.com/owner/repo, or owner/repo shorthand.
+      With source local or omitted, path selects a local skill; otherwise path selects a directory in the repository.
   repositoryPath:
     type: string
     minLength: 1
     pattern: '^[^\\\x00-\x1F\x7F-\x9F]+$'
     not:
       pattern: '^(?:/|[A-Za-z]:)'
-    $comment: The loader must clean the path, enforce repository containment, and reject symlinked paths.
+    $comment: The loader enforces containment within the manifest directory or selected repository and rejects symlinks.
   bundle:
     type: object
     additionalProperties: false
@@ -79,10 +84,7 @@ $defs:
       name:
         $ref: '#/$defs/name'
       source:
-        $ref: '#/$defs/localSource'
-      github:
-        type: string
-        pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+        $ref: '#/$defs/source'
       path:
         $ref: '#/$defs/repositoryPath'
       ref:
@@ -91,21 +93,20 @@ $defs:
     oneOf:
       - title: Local bundle
         required:
-          - source
-        not:
-          anyOf:
-            - required:
-                - github
-            - required:
-                - path
-            - required:
-                - ref
-      - title: GitHub bundle
-        required:
-          - github
+          - path
+        properties:
+          source:
+            const: local
         not:
           required:
-            - source
+            - ref
+      - title: Repository bundle
+        required:
+          - source
+        properties:
+          source:
+            not:
+              const: local
   mcp:
     type: object
     additionalProperties: false

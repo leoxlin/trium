@@ -4,7 +4,8 @@ Status: proposed
 
 ## Purpose
 
-Skillet is a Go CLI that reconciles selected resources from one versioned manifest into one or more per-user Codex, Claude Code,
+Skillet is a Go CLI that reconciles selected resources from one versioned manifest into one or more per-user Codex,
+Claude Code,
 or Kimi Code environments. Its primary seam is Plan/Apply: planning produces a semantic diff without changing the
 machine; applying recomputes that diff under a lock and installs the changes.
 
@@ -17,8 +18,8 @@ end-user documentation.
   configuration.
 - Each manifest accepts one target mapping or a non-empty list of target mappings. Each optional target path
   overrides that agent's home; otherwise its environment variable and default home are used.
-- Skills and plugins come from local files relative to the skillet file or from a directory in a public GitHub
-  repository. Remote configuration targets are outside version 1.
+- Skills and plugins come from local directories or remote repositories. Remote configuration targets are outside
+  version 1.
 - MCP declarations support stdio and streamable HTTP. Hook management is outside version 1; existing native hooks remain
   unmanaged. Other native capabilities remain representable in native configuration but are not managed by Skillet.
 - A skillet is additive and corrective. It adds or updates named resources but never deletes a resource merely because
@@ -64,7 +65,7 @@ internal/manifest ───> internal/resource <─── internal/agents
 | ------------------------ | ---------------------------------------------------------------------------------- | --------------------------------- |
 | `cmd/skillet`            | Process entry point and exit status                                                | Manifest or native config details |
 | `internal/cli`           | Argument dispatch, output rendering, wiring                                        | Reconciliation algorithms         |
-| `internal/manifest`       | Strict YAML decoding, local/GitHub acquisition, validation, desired fingerprints   | Agent paths and formats           |
+| `internal/manifest`       | Strict YAML decoding, source resolution, validation, desired fingerprints   | Agent paths and formats           |
 | `internal/resource`      | Resource values, Plan/Apply interfaces, changes, reports, shared semantic differ   | Any specific agent                |
 | `internal/agents`        | Agent interface, resource set, apply locking, and shared target paths              | CLI or manifest decoding          |
 | `internal/engine`        | Deterministic orchestration, apply locking, conflict preflight, result aggregation | Native serialization              |
@@ -75,15 +76,14 @@ internal/manifest ───> internal/resource <─── internal/agents
 Agent packages may share unexported filesystem and structured-file helpers through an internal package. Resource
 semantics must remain in the agent adapter; a shared helper must not turn into a lowest-common-denominator agent model.
 
-The skillet loader is the acquisition seam. Its implementation hides GitHub ref resolution, archive download, safe
-extraction, and in-memory snapshots behind the existing manifest load operation. This keeps network policy and bundle
-validation in one module instead of duplicating them across three agents and two resource classes.
+Source acquisition and validation happen before reconciliation. Shared acquisition helpers hide transport and resource
+lifecycles; agent adapters receive validated snapshots without knowing how they were acquired.
 
 ### Dependency rules
 
 - `resource` has no dependencies on other Skillet modules.
-- `manifest` emits `resource.Desired`; it does not import `agents` or an agent implementation. The CLI injects its HTTP
-  client, and only this module makes GitHub requests.
+- `manifest` emits `resource.Desired` and may use `agents/shared` for acquisition. It does not depend on agent
+  implementations or native configuration formats.
 - `engine` depends only on `agents` and `resource`.
 - Agent implementations depend on `agents` and `resource`, never on `engine`, `cli`, or `manifest`.
 - The CLI is the only module that chooses an agent implementation from a name.
@@ -92,17 +92,17 @@ validation in one module instead of duplicating them across three agents and two
 
 1. The CLI loads `~/.config/skillet.yaml` by default, or exactly the path supplied by the global `--file` option. It
    does not search for or merge another manifest.
-2. The manifest module decodes and statically validates the complete document, including all entries in `target`. It resolves
-   local sources and acquires each declared GitHub source once into memory, then validates bundle content and computes
-   semantic fingerprints.
-3. For each target in declaration order, the CLI selects the agent factory named by `target.agent`. The factory resolves the optional `target.path` override,
+2. The manifest module validates the complete document, acquires declared bundles, and computes semantic fingerprints
+   before discovering targets.
+3. For each target in declaration order, the CLI selects the agent factory named by `target.agent`. The factory resolves
+   the optional `target.path` override,
    then the agent-home environment variable and default, and discovers concrete per-user targets. Environment discovery
    occurs only in this factory; adapters receive explicit paths.
 4. The engine calls `Plan` for every resource class in fixed order: skills, plugins, MCPs.
 5. Each resource adapter scans its writable user-scope targets, decodes native state, validates requested capabilities,
    and returns semantic changes plus target digests. Resource planning performs no acquisition or network requests.
-6. The plan command renders changes and conflicts. It creates no directories, lock files, backups, caches, or native
-   configuration. A manifest with GitHub sources requires network access during step 2; a local-only plan does not.
+6. The plan command renders changes and conflicts without changing agent state. Source acquisition may require network
+   access before planning begins.
 7. The apply command acquires the agent lock before repeating steps 4–5 with the already acquired sources. Any conflict
    aborts before writes. Otherwise the engine applies each non-empty change set in the same fixed order and reports the
    result.
@@ -111,7 +111,7 @@ Targets are processed in declaration order. A failure stops later targets; earli
 Locks, backups, and conflict checks are per target. There is no transaction across targets.
 
 There is no saved plan file or remote-source cache in version 1. Apply always plans against current native state, so a
-stale diff cannot be submitted for execution, and it stages the same GitHub snapshots used to render that diff.
+stale diff cannot be submitted for execution, and it stages the same source snapshots used to render that diff.
 
 ## Ownership model
 
@@ -148,25 +148,19 @@ See [engine.md](engine.md) for command and failure contracts.
 
 ## Security constraints
 
-- Local source paths cannot escape the manifest directory, GitHub paths cannot escape their repository, and source
+- Local source paths cannot escape the manifest directory, repository paths cannot escape their repository, and source
   symlinks are rejected.
-- GitHub acquisition uses fixed anonymous HTTPS GitHub endpoints, standard TLS verification, bounded response and
-  extracted sizes, file-count limits, timeouts, and context cancellation. Redirects may only go to approved GitHub
-  hosts. Repository fields cannot select another host, and refs are URL-path escaped rather than passed to a shell.
-- Archives are extracted into memory after stripping GitHub's single archive root. Absolute paths, parent traversal,
-  links, and special files in the selected bundle are rejected; unrelated archive entries are ignored. Skillet does not
-  run `git`, clone hooks, submodule commands, credential helpers, or any acquired content. Plan retains no temporary
-  extraction files.
+- Source acquisition validates bundle safety, supports cancellation, and owns cleanup of temporary resources. Skillet
+  never executes acquired content.
 - Target paths come only from the manifest's explicit `target.path`, trusted agent-home environment variables, and
   explicit constructor configuration. Manifest overrides must be absolute or start with `~/`; relative paths, empty
   paths, and control characters are rejected during manifest validation.
-- Plan makes no mutations. Only the loader may make direct network requests, only for declared GitHub sources, and
-  before agent discovery; resource planning and local-only commands make none. An Apply adapter may invoke a fixed
+- Plan leaves agent state unchanged. Source acquisition may use the network before agent discovery; resource planning
+  makes no network requests. An Apply adapter may invoke a fixed
   native management executable and argument vector without a shell; it must capture and redact diagnostics and report
   native side effects.
 - MCP environment and header values are always redacted in human-readable diffs and captured command diagnostics.
-  Skillet does not resolve secret references or read credential files. GitHub acquisition is anonymous and does not read
-  GitHub tokens or other credentials.
+  Skillet does not resolve secret references or read credential files directly.
 - New files that can contain credentials use owner-only permissions; existing permissions are preserved where practical.
 - Applying an agent configuration can enable code to run in a later agent session. The plan must identify that effect
   even though Skillet itself does not execute it.

@@ -10,10 +10,10 @@ skillet schema, engine, or command syntax.
 
 - **Plan:** only non-mutating operations are allowed. An adapter may use a documented read-only CLI list or inspect
   command, but never an install, update, trust, reload, or resource-execution command. Plan makes no network requests,
-  so a CLI query must be known to remain local. GitHub content has already been acquired by the skillet loader.
+  so a CLI query must be known to remain local. Git content has already been acquired by the skillet loader.
 - **Apply:** an adapter may write native files directly, invoke a native management command, or combine both. It must
   identify affected targets, back them up, invoke commands without a shell, capture and redact output, and verify the
-  resulting state through a fresh scan. GitHub snapshots are staged exactly like local bundle content and are never
+  resulting state through a fresh scan. Git snapshots are staged exactly like local bundle content and are never
   downloaded again by an adapter.
 - **Selection:** direct writes are suitable for simple documented formats with deterministic replacement. Native
   commands are suitable when an agent owns a complex or unstable registry. Neither strategy is prescribed globally.

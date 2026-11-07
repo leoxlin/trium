@@ -26,14 +26,14 @@ Each resource value implements `Item`. `Key` is the manifest name. `Fingerprint`
 defined in [skillet.schema.yaml](../skillet.schema.yaml), not a digest of native serialization.
 
 Desired file-backed values retain a bundle source so an adapter can stage content. A local source contains its resolved
-path. A GitHub source contains an immutable in-memory snapshot of regular file paths, bytes, and executable bits, plus
+path. A Git source contains an immutable in-memory snapshot of regular file paths, bytes, and executable bits, plus
 its repository, requested ref, and resolved commit for diagnostics. Both forms use the same bundle fingerprint and
 staging behavior. Source locations and resolved commits never participate in fingerprints.
 
-The skillet loader acquires every declared GitHub bundle once, before agent discovery. It resolves the ref, downloads
-and validates the archive, selects the requested directory, and returns the snapshot as part of `resource.Desired`.
-The CLI injects an HTTP client into the loader; tests supply a fake transport. Agent adapters receive neither an HTTP
-client nor repository declarations, and never acquire source content themselves. Apply therefore uses the same remote
+The skillet loader acquires every declared Git bundle once, before agent discovery. It delegates ref resolution and Git
+archive acquisition to `agents/shared`, validates the selected bundle, and returns the snapshot as part of
+`resource.Desired`. Tests use local repositories and Git URL rewrites. Agent adapters receive acquired snapshots and
+never acquire source content themselves. Apply therefore uses the same remote
 snapshot in its fresh plan and writes, even if the upstream ref moves during that invocation.
 
 `MCP` uses typed fields matching the manifest schema rather than `map[string]any`. Agent-only fields are decoded into
@@ -227,10 +227,11 @@ externally supplied plan.
 ## Error taxonomy
 
 - **Invalid invocation, manifest, or acquired bundle:** a typed validation error with a field path; exit 2 before
-  scanning. This includes invalid GitHub declarations, unsafe archive paths, and invalid skill content.
+  scanning. This includes invalid source declarations, unsafe archive paths, and invalid skill content.
 - **Requested/native incompatibility:** a `Conflict` change with key and reason; complete diff, exit 2, no mutations.
-- **GitHub HTTP, native parse, CLI query, permission, or I/O failure:** a wrapped operational error with source, target,
-  or command context; exit 1. HTTP status, timeout, cancellation, response-limit, and malformed-archive failures happen
+- **Git acquisition, native parse, CLI query, permission, or I/O failure:** a wrapped operational error with source,
+  target,
+  or command context; exit 1. Git command, timeout, cancellation, and malformed-archive failures happen
   before agent discovery or native writes.
 - **Concurrent target modification:** a typed drift error naming the target; exit 1 without mutating that resource.
 - **Apply failure:** a wrapped error plus partial `ApplyReport`; exit 1 with explicit partial-result output.

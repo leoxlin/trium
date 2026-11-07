@@ -5,6 +5,10 @@ native targets, not mocks of the interface being tested.
 
 ## Unit Coverage
 
+Implemented Git-source tests use temporary local repositories and require the Git executable, without external network
+access. They cover default HEAD, branch, tag, and commit selection, root and nested bundles, executable bits, equality
+with local fingerprints, apply idempotence, invalid declarations, missing revisions and paths, links, and cancellation.
+
 ### Manifest module
 
 Use table-driven tests for:
@@ -14,23 +18,25 @@ Use table-driven tests for:
   duplicate targets, and strict field validation for every list entry;
 - unknown fields, duplicate YAML keys, duplicate names, invalid names, and nulls;
 - stdio/HTTP field exclusivity and transport-specific fields;
-- missing, absolute, escaping, and symlinked sources;
-- exactly one local or GitHub source, repository syntax, default and explicit refs, root and nested bundle paths, and
-  rejection of `path` or `ref` with local sources;
+- missing, absolute, escaping, and symlinked local paths;
+- required local `path` when `source` is `local` or omitted; Git URLs and GitHub shorthand for repository sources;
+- repository syntax, default and explicit refs, root and nested bundle paths, and rejection of `ref` for local skills;
+- rejection of local filesystem paths and `file://` URLs in `source`, including existing local skill directories;
 - skill frontmatter validation and name agreement;
 - deterministic bundle hashes despite file order, timestamps, non-executable mode changes, and source location;
 - executable-bit and file-content hash changes.
 
 Run the loader twice with differently ordered filesystem entries and require identical desired values and fingerprints.
-An identical local directory and GitHub archive must produce the same desired bundle and fingerprint.
+An identical local directory and Git archive must produce the same desired bundle and fingerprint.
 
-### GitHub acquisition
+### Git acquisition
 
-Use a fake HTTP transport; no test contacts GitHub. Verify default-branch, branch, tag, and commit resolution, URL
-escaping, archive-root removal, subdirectory selection, executable-bit retention, cancellation, and one acquisition per
-declared source. Cover HTTP status failures, timeouts, disallowed redirects, compressed and expanded size limits, file
-count limits, malformed archives, absolute and parent-traversal paths, links, special files, and missing bundle paths.
-Assert that failures occur before agent discovery and that acquisition creates no files or persistent cache.
+Use temporary local repositories and Git URL rewrites; no test contacts a remote host. Verify URL and shorthand
+normalization through the public loader, local `path` selection without `source`, default HEAD, branch, tag, and full
+commit
+selection, root and nested bundles, executable bits, cancellation, missing refs and paths, symlinks, and submodules.
+Assert that acquired bytes remain installable after the original repository disappears. Reject legacy `git` and
+`github` fields, malformed source forms, unsafe paths, and `ref` on local directory declarations.
 
 ### Shared differ
 
@@ -118,8 +124,9 @@ Also verify `--file <path>` loads that manifest instead of the default and ancho
 arguments exit 2, MCP secrets never appear in captured output or forwarded command diagnostics, and partial apply
 failures include their report.
 
-CLI wiring tests add a GitHub skill and plugin through the fake HTTP transport for every agent. Verify that Plan makes
-no filesystem changes, output includes the resolved commit, Apply acquires before the lock and downloads only once, and
+CLI wiring tests add Git-sourced skills and plugins through local repositories and URL rewrites for every agent. Verify
+that Plan makes
+no filesystem changes, Apply acquires before the lock and fetches only once, and
 the bytes staged for installation are the bytes used for the rendered plan. A repeated invocation serving the same
 archive must report no changes. Local and remote forms of every skill and plugin adapter contract case must pass.
 

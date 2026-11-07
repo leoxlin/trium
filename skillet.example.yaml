@@ -9,15 +9,17 @@ target:
 
 skills:
   - name: code-review
-    source: skills/code-review
+    source: local
+    path: skills/code-review
   - name: team-workflows
-    github: leoxlin/skillets
+    source: leoxlin/skillets
     path: skills/team-workflows
     ref: main
 
 plugins:
   - name: team-tools
-    source: plugins/team-tools
+    source: local
+    path: plugins/team-tools
 
 mcps:
   - name: filesystem

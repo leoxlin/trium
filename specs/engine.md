@@ -9,18 +9,20 @@ skillet [--file <path>] apply
 
 The manifest's required `target.agent` selects exactly one of `codex`, `claude`, or `kimi`. When `--file` is omitted,
 the CLI loads `~/.config/skillet.yaml`; it does not fall back to `skillet.yaml` in the current working directory. When
-`--file` is provided, the CLI loads exactly that YAML path instead. For either form, local source paths are anchored to
-the selected manifest's directory; GitHub paths remain relative to their repository.
+`--file` is provided, the CLI loads exactly that YAML path instead. With `source: local` or `source` omitted, `path` is
+anchored to the selected manifest's directory; with a repository source, `path` is relative to that repository.
 
 The first form is Plan. The second is Apply. Version 1 has no separate `plan` subcommand, saved-plan argument, prune
 command, agent argument, or agent auto-detection. Extra positional arguments are invocation errors.
 
 ## Plan
 
-Plan loads and validates the entire manifest, acquires each declared GitHub skill or plugin once into memory, discovers
+Plan loads and validates the entire manifest, acquires each declared Git skill or plugin once into memory, discovers
 the selected agent's user-scope targets, and produces one semantic diff. It does not create missing configuration,
-create the `.skillet` directory, acquire an apply lock, write backups or caches, invoke a mutating command, or execute
-resource content. Only manifest loading may use the network, and only when GitHub sources are declared. An adapter may
+create the `.skillet` directory, acquire an apply lock, write backups or caches, execute resource content, or mutate
+agent files. Source acquisition may create temporary bare repositories
+that are removed before loading returns. Only manifest loading may use the network, and only when Git sources are
+declared. An adapter may
 invoke a documented local, read-only agent CLI query when that is its chosen scan strategy.
 
 ### Change meanings
@@ -57,7 +59,7 @@ Plan only; no changes applied.
 ```
 
 The summary counts are illustrative and must be computed from actual rows. MCP changes display field-level before/after
-values. Skill and plugin changes display fingerprints and source descriptions. A GitHub description includes repository,
+values. Skill and plugin changes display fingerprints and source descriptions. A Git description includes repository,
 bundle path, requested ref, and resolved commit; a location-only change with equal content remains unchanged. Verbose
 per-file diffs are outside version 1.
 
@@ -71,7 +73,7 @@ are unchanged.
 
 Apply is not Plan with a writing flag bolted onto a stale result. It performs the following sequence:
 
-1. Load and validate the manifest, acquire each GitHub source once, and compute source fingerprints.
+1. Load and validate the manifest, acquire each Git source once, and compute source fingerprints.
 2. Acquire the selected agent's apply lock.
 3. Re-scan native state and compute a fresh plan while holding the lock, retaining the source snapshots from step 1.
 4. Render that plan.

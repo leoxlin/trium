@@ -24,7 +24,7 @@ func TestKimiPlanApplyPlan(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(contents), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	manifest := "version: 1\ntarget:\n  agent: kimi\nskills:\n  - name: review\n    source: skill\n"
+	manifest := "version: 1\ntarget:\n  agent: kimi\nskills:\n  - name: review\n    path: skill\n"
 	manifestPath := filepath.Join(dir, "skillet.yaml")
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestCodexUsesSharedSkillRoot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "skill", "SKILL.md"), []byte(contents), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	manifest := "version: 1\ntarget:\n  agent: codex\nskills:\n  - name: review\n    source: skill\n"
+	manifest := "version: 1\ntarget:\n  agent: codex\nskills:\n  - name: review\n    path: skill\n"
 	path := filepath.Join(dir, "skillet.yaml")
 	if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
@@ -100,7 +100,7 @@ func TestMultipleTargetsPlanApplyPlan(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(contents), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	manifest := "version: 1\ntarget:\n  - agent: codex\n  - agent: kimi\nskills:\n  - name: review\n    source: skill\n"
+	manifest := "version: 1\ntarget:\n  - agent: codex\n  - agent: kimi\nskills:\n  - name: review\n    path: skill\n"
 	manifestPath := filepath.Join(dir, "skillet.yaml")
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)

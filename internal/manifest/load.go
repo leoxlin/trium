@@ -6,19 +6,25 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/leoxlin/skillets/internal/agents/shared"
 	"github.com/leoxlin/skillets/internal/resource"
 )
 
 var (
 	namePattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 	schemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
+	githubPattern = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*$`)
+	scpPattern    = regexp.MustCompile(`^(?:[^/@:\s]+@)?[^/:\s]+:[^:\s]+$`)
 )
 
 type ValidationError struct {
@@ -57,7 +63,6 @@ type targetDecl struct {
 type skillDecl struct {
 	Name   string `yaml:"name"`
 	Source string `yaml:"source"`
-	GitHub string `yaml:"github"`
 	Path   string `yaml:"path"`
 	Ref    string `yaml:"ref"`
 }
@@ -151,7 +156,7 @@ func Load(ctx context.Context, path string) (Manifest, error) {
 			return Manifest{}, invalid(field+".name", "duplicate skill name")
 		}
 		seen[declaration.Name] = struct{}{}
-		skill, err := loadSkill(filepath.Dir(absolute), declaration, field)
+		skill, err := loadSkill(ctx, filepath.Dir(absolute), declaration, field)
 		if err != nil {
 			return Manifest{}, err
 		}
@@ -160,32 +165,102 @@ func Load(ctx context.Context, path string) (Manifest, error) {
 	return manifest, nil
 }
 
-func loadSkill(manifestDir string, declaration skillDecl, field string) (resource.Skill, error) {
-	if declaration.GitHub != "" {
-		return resource.Skill{}, invalid(field+".github", "GitHub sources are not supported by this tracer bullet")
+func loadSkill(ctx context.Context, manifestDir string, declaration skillDecl, field string) (resource.Skill, error) {
+	if declaration.Source != "" && declaration.Source != "local" {
+		repository, err := repositorySource(declaration.Source)
+		if err != nil {
+			return resource.Skill{}, invalid(field+".source", err.Error())
+		}
+		return loadGitSkill(ctx, manifestDir, declaration, repository, field)
 	}
-	if declaration.Source == "" {
-		return resource.Skill{}, invalid(field+".source", "exactly one local source is required")
+	if declaration.Ref != "" {
+		return resource.Skill{}, invalid(field+".ref", "is only valid with a repository source")
 	}
-	if declaration.Path != "" || declaration.Ref != "" {
-		return resource.Skill{}, invalid(field, "path and ref are only valid with a GitHub source")
+	if declaration.Path == "" {
+		return resource.Skill{}, invalid(field+".path", "is required when source is local or omitted")
 	}
-	root, err := sourcePath(manifestDir, declaration.Source)
+	root, err := sourcePath(manifestDir, declaration.Path)
 	if err != nil {
-		return resource.Skill{}, invalid(field+".source", err.Error())
+		return resource.Skill{}, invalid(field+".path", err.Error())
 	}
 	files, err := resource.Snapshot(root)
 	if err != nil {
-		return resource.Skill{}, invalid(field+".source", err.Error())
+		return resource.Skill{}, invalid(field+".path", err.Error())
 	}
+	return skillFromFiles(declaration.Name, root, files, field+".path")
+}
+
+func repositorySource(source string) (string, error) {
+	if hasControl(source) || strings.TrimSpace(source) == "" || strings.HasPrefix(source, "-") {
+		return "", errors.New("must be a Git URL or GitHub shorthand without control characters")
+	}
+	if strings.HasPrefix(source, "github:") || strings.HasPrefix(source, "github.com/") {
+		repository := strings.TrimPrefix(strings.TrimPrefix(source, "github:"), "github.com/")
+		if !githubPattern.MatchString(repository) {
+			return "", errors.New("GitHub shorthand must be owner/repo")
+		}
+		return "https://github.com/" + repository, nil
+	}
+	if githubPattern.MatchString(source) {
+		return "https://github.com/" + source, nil
+	}
+	if strings.HasPrefix(source, "git:") && !strings.HasPrefix(source, "git://") {
+		source = strings.TrimPrefix(source, "git:")
+	}
+	source = strings.TrimPrefix(source, "git+")
+	if strings.Contains(source, "://") {
+		parsed, err := url.Parse(source)
+		if err != nil || parsed.Host == "" {
+			return "", errors.New("invalid Git repository URL")
+		}
+		switch parsed.Scheme {
+		case "https", "http", "ssh", "git":
+			return source, nil
+		default:
+			return "", errors.New("unsupported Git repository URL scheme")
+		}
+	}
+	if scpPattern.MatchString(source) && !strings.HasPrefix(source, "./") && !strings.HasPrefix(source, "../") {
+		return source, nil
+	}
+	return "", errors.New("must be a Git URL or GitHub shorthand; use path for a local skill")
+}
+
+func loadGitSkill(ctx context.Context, manifestDir string, declaration skillDecl, repository, field string) (resource.Skill, error) {
+	ref := declaration.Ref
+	if ref == "" {
+		ref = "HEAD"
+	}
+	if hasControl(ref) || strings.ContainsFunc(ref, unicode.IsSpace) || strings.HasPrefix(ref, "-") ||
+		strings.ContainsAny(ref, ":*?[^~\\") || strings.Contains(ref, "..") || strings.Contains(ref, "@{") {
+		return resource.Skill{}, invalid(field+".ref", "must be a branch, tag, or full commit hash")
+	}
+	bundlePath := path.Clean(declaration.Path)
+	if hasControl(declaration.Path) || strings.ContainsAny(declaration.Path, `\:`) || path.IsAbs(bundlePath) ||
+		bundlePath == ".." || strings.HasPrefix(bundlePath, "../") {
+		return resource.Skill{}, invalid(field+".path", "must stay inside the repository and contain no control characters")
+	}
+
+	source, files, err := shared.SnapshotGit(ctx, manifestDir, repository, ref, bundlePath)
+	if err != nil {
+		var unsafe *resource.UnsafePathError
+		if errors.As(err, &unsafe) {
+			return resource.Skill{}, invalid(field+".path", unsafe.Reason)
+		}
+		return resource.Skill{}, fmt.Errorf("%s.source: %w", field, err)
+	}
+	return skillFromFiles(declaration.Name, source, files, field+".source")
+}
+
+func skillFromFiles(name, source string, files []resource.File, field string) (resource.Skill, error) {
 	skillFile, ok := resource.FindFile(files, "SKILL.md")
 	if !ok {
-		return resource.Skill{}, invalid(field+".source", "bundle must contain SKILL.md")
+		return resource.Skill{}, invalid(field, "bundle must contain SKILL.md")
 	}
-	if err := validateFrontmatter(skillFile.Data, declaration.Name); err != nil {
-		return resource.Skill{}, invalid(field+".source/SKILL.md", err.Error())
+	if err := validateFrontmatter(skillFile.Data, name); err != nil {
+		return resource.Skill{}, invalid(field+"/SKILL.md", err.Error())
 	}
-	return resource.NewSkill(declaration.Name, root, files), nil
+	return resource.NewSkill(name, source, files), nil
 }
 
 func sourcePath(manifestDir, source string) (string, error) {
