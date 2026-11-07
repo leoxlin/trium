@@ -1,0 +1,14 @@
+[tools]
+go = "1.26.0"
+
+[tasks.build]
+description = "Build the skillet CLI locally"
+run = "go build ./cmd/skillet"
+
+[tasks.test]
+description = "Run all tests"
+run = "go test ./..."
+
+[tasks.dev]
+description = "Run the skillet CLI"
+run = "go run ./cmd/skillet"
