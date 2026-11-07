@@ -314,3 +314,37 @@ func TestStagingFailureDoesNotReplaceEarlierTargets(t *testing.T) {
 		t.Fatalf("staging files retained: %v", stages)
 	}
 }
+
+func TestMCPBatchRollbackAndDrift(t *testing.T) {
+	for _, agent := range []string{"codex", "claude", "kimi"} {
+		t.Run(agent, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "config")
+			original := "{\"unrelated\":true}\n"
+			if agent == "codex" {
+				original = "unrelated = true\n"
+			}
+			testWrite(t, path, original)
+			servers := []manifest.MCP{{Name: "server", Command: "server"}}
+			batch, err := planMCPs(context.Background(), servers, agent, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sentinel := errors.New("verification failed")
+			report, err := applyBatch(context.Background(), filepath.Join(root, "backups"), batch, func(context.Context) error { return sentinel })
+			if !errors.Is(err, sentinel) || len(report.Backups) != 1 || len(report.Warnings) != 0 {
+				t.Fatalf("rollback: %#v %v", report, err)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil || string(data) != original {
+				t.Fatalf("restoration: %s %v", data, err)
+			}
+			testWrite(t, path, original+" ")
+			_, err = applyBatch(context.Background(), filepath.Join(root, "backups"), batch, func(context.Context) error { return nil })
+			var drift *DriftError
+			if !errors.As(err, &drift) {
+				t.Fatalf("drift: %v", err)
+			}
+		})
+	}
+}

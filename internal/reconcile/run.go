@@ -14,17 +14,23 @@ import (
 	"github.com/leoxlin/skillets/internal/manifest"
 )
 
-type Homes struct{ User, Codex, Claude, Kimi string }
+type Homes struct {
+	User, Codex, Claude, Kimi string
+	// ClaudeConfig optionally selects Claude's user-state file when its config directory is explicitly set.
+	ClaudeConfig string
+}
 type native interface {
 	validate(desired) error
 	plan(context.Context, desired) (targetPlan, error)
 }
 type selectedTarget struct {
 	agent, home string
+	mcpPath     string
 	native      native
 }
 type Prepared struct {
 	wanted   desired
+	mcps     []manifest.MCP
 	targets  []selectedTarget
 	lockPath string
 }
@@ -45,7 +51,13 @@ func Prepare(ctx context.Context, spec manifest.Manifest, baseDir string, homes 
 	if len(spec.Targets) == 0 {
 		return nil, &InputError{Field: "target", Err: errors.New("at least one target is required")}
 	}
-	p := &Prepared{lockPath: filepath.Join(homes.User, ".skillet", "apply.lock")}
+	if err := manifest.ValidateMCPs(spec.MCPs); err != nil {
+		return nil, &InputError{Field: "mcps", Err: err}
+	}
+	if homes.ClaudeConfig != "" && !filepath.IsAbs(homes.ClaudeConfig) {
+		return nil, errors.New("Claude config path must be absolute")
+	}
+	p := &Prepared{mcps: prepareMCPs(spec.MCPs, baseDir), lockPath: filepath.Join(homes.User, ".skillet", "apply.lock")}
 	seenTargets := map[string]bool{}
 	for i, target := range spec.Targets {
 		home := target.Path
@@ -69,10 +81,25 @@ func Prepare(ctx context.Context, spec manifest.Manifest, baseDir string, homes 
 		selected := selectedTarget{agent: target.Agent, home: home}
 		switch target.Agent {
 		case "codex":
+			selected.mcpPath = filepath.Join(home, "config.toml")
 			selected.native = &codexNative{home: home, skillsRoot: filepath.Join(homes.User, ".agents", "skills")}
 		case "claude":
+			selected.mcpPath = filepath.Join(home, ".claude.json")
+			if target.Path == "" {
+				if homes.ClaudeConfig != "" {
+					selected.mcpPath = homes.ClaudeConfig
+				} else if home == filepath.Join(homes.User, ".claude") {
+					selected.mcpPath = filepath.Join(homes.User, ".claude.json")
+				}
+			}
+			for i, server := range spec.MCPs {
+				if server.Cwd != "" {
+					return nil, &InputError{Field: fmt.Sprintf("mcps[%d].cwd", i), Err: errors.New("Claude does not support MCP cwd; use an explicit wrapper command")}
+				}
+			}
 			selected.native = &claudeNative{home: home, skillsRoot: filepath.Join(home, "skills")}
 		case "kimi":
+			selected.mcpPath = filepath.Join(home, "mcp.json")
 			selected.native = &kimiNative{home: home, skillsRoot: filepath.Join(home, "skills")}
 		default:
 			return nil, &InputError{Field: fmt.Sprintf("target[%d].agent", i), Err: fmt.Errorf("unsupported agent %q", target.Agent)}
@@ -133,7 +160,7 @@ func (p *Prepared) Plan(ctx context.Context) ([]TargetPlan, error) {
 		if err := ctx.Err(); err != nil {
 			return plans, err
 		}
-		plan, err := target.native.plan(ctx, p.wanted)
+		plan, err := p.planTarget(ctx, target)
 		if err != nil {
 			return plans, fmt.Errorf("plan %s (%s): %w", target.agent, target.home, err)
 		}
@@ -152,7 +179,7 @@ func (p *Prepared) Apply(ctx context.Context) (results []TargetResult, err error
 		if err := ctx.Err(); err != nil {
 			return results, err
 		}
-		plan, err := target.native.plan(ctx, p.wanted)
+		plan, err := p.planTarget(ctx, target)
 		result := TargetResult{Plan: TargetPlan{Agent: target.agent, Home: target.home, Changes: plan.changes()}}
 		results = append(results, result)
 		if err != nil {
@@ -162,11 +189,18 @@ func (p *Prepared) Apply(ctx context.Context) (results []TargetResult, err error
 			return results, nil
 		}
 		for _, batch := range plan.batches {
+			// Plugins may rewrite the same Codex config; preserve their verified output.
+			if batch.kind == MCPs && len(batch.writes) > 0 {
+				batch, err = planMCPs(ctx, p.mcps, target.agent, target.mcpPath)
+				if err != nil {
+					return results, fmt.Errorf("plan %s (%s) mcps: %w", target.agent, target.home, err)
+				}
+			}
 			if len(batch.writes) == 0 {
 				continue
 			}
 			report, err := applyBatch(ctx, filepath.Join(target.home, ".skillet", "backups"), batch, func(ctx context.Context) error {
-				verified, err := target.native.plan(ctx, p.wanted)
+				verified, err := p.planTarget(ctx, target)
 				if err != nil {
 					return err
 				}
@@ -205,4 +239,17 @@ func planTarget(ctx context.Context, wanted desired, root string, reads []observ
 		return targetPlan{}, err
 	}
 	return targetPlan{batches: []writeBatch{skills, plugins}}, nil
+}
+
+func (p *Prepared) planTarget(ctx context.Context, target selectedTarget) (targetPlan, error) {
+	plan, err := target.native.plan(ctx, p.wanted)
+	if err != nil {
+		return plan, err
+	}
+	mcps, err := planMCPs(ctx, p.mcps, target.agent, target.mcpPath)
+	if err != nil {
+		return plan, err
+	}
+	plan.batches = append(plan.batches, mcps)
+	return plan, nil
 }

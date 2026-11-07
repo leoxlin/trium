@@ -6,8 +6,8 @@ No test requires external network access or agent executables, and installed res
 ## Manifest
 
 `manifest.Parse` tests cover strict fields, required targets, target lists, duplicate targets, invalid names, nulls,
-source/ref/path combinations, and legacy field rejection. A valid declaration can reference nonexistent local or remote
-content, demonstrating that parsing does not acquire sources.
+source/ref/path combinations, MCP transport combinations, headers, token references, and legacy field rejection. A valid
+declaration can reference nonexistent local or remote content, demonstrating that parsing does not acquire sources.
 
 ## Bundle
 
@@ -33,6 +33,9 @@ Public preparation and Plan/Apply tests exercise all three native adapters:
 - Plugin conflicts blocking skill writes, and invalid source metadata blocking every target before writes.
 - Fresh apply planning, snapshot reuse, stable ordering, and earlier-target preservation after a later conflict.
 - Invalid and ambiguous native JSON documents failing before writes.
+- MCP stdio/HTTP mapping, transport replacement, token references, working directories, and input snapshot independence.
+- Combined skill/plugin/MCP apply, shared Codex configuration, native option preservation, and no-op MCP applies.
+- MCP batch rollback, retained backups, native-file drift, and malformed native configuration.
 
 Private transaction tests cover the internal seam that owns failures. They use real temporary targets and observations,
 then inject verification failure or cancellation. Assertions cover registry and read-only policy drift, complete bundle
@@ -46,8 +49,8 @@ apply, and OS release after a subprocess exits without explicitly unlocking.
 
 CLI acceptance tests call `cli.Run` with temporary homes, manifest files, and captured output. They cover supported
 agents, target lists, environment and explicit target overrides, preview without target creation, plan/apply/plan,
-plugin-only output, and correct installed paths. Tests must set a temporary user home even when the agent target is
-explicit: apply uses a per-user lock.
+plugin-only and MCP output, Claude state paths, and correct installed paths. Tests must set a temporary user home even
+when the agent target is explicit: apply uses a per-user lock.
 
 ## Completion checks
 

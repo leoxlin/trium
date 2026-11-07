@@ -8,8 +8,8 @@
 
 ## Tracer bullet
 
-The current implementation reconciles local and Git-sourced skills and plugins for Codex, Claude Code, and Kimi Code.
-MCP servers remain in the design but are not implemented.
+The CLI reconciles local and Git-sourced skills and plugins, plus MCP server configurations, for Codex, Claude Code,
+and Kimi Code.
 
 Build the CLI:
 
@@ -115,6 +115,44 @@ or scopes, missing managed bundles, duplicate registrations, and unsafe paths bl
 writes. Unrelated native settings and plugins are preserved. A skill and plugin can share a name without sharing
 installed files.
 
+MCP servers are declared directly, without a bundle source:
+
+```yaml
+mcps:
+  - name: filesystem
+    command: npx
+    args: [-y, "@modelcontextprotocol/server-filesystem", /srv/files]
+    env:
+      LOG_LEVEL: info
+  - name: docs
+    url: https://mcp.example.com/mcp
+    headers:
+      X-Client: skillet
+    bearer_token_env: DOCS_TOKEN
+```
+
+Each server requires exactly one of `command` (stdio) or `url` (Streamable HTTP). Stdio accepts `args`, `env`, and
+`cwd`; HTTP accepts `headers` and `bearer_token_env`. An Authorization header cannot accompany `bearer_token_env`.
+A relative `cwd` resolves against the manifest directory. Claude does not support `cwd`; use a wrapper command for
+servers that require a particular working directory. Other command arguments and environment values are passed through.
+
+| Agent | User MCP configuration |
+| ----- | ---------------------- |
+| Codex | `<agent-home>/config.toml`, under `mcp_servers` |
+| Claude | `~/.claude.json`, under `mcpServers` |
+| Kimi | `<agent-home>/mcp.json`, under `mcpServers` |
+
+For Claude, setting `CLAUDE_CONFIG_DIR` or `target.path` places `.claude.json` inside that agent home instead.
+When using `target.path`, launch Claude with the same `CLAUDE_CONFIG_DIR` to load that configuration.
+Bearer token references stay in native configuration and are resolved by the agent at runtime; Skillet never reads
+the token. Claude uses `Authorization: Bearer ${DOCS_TOKEN}`; Codex and Kimi use their native token-variable fields.
+
+Applying reconciles declared connection fields, preserves native server options such as tool policy and timeouts,
+and enables Codex and Kimi entries. Claude's existing approval and disable policies remain in effect.
+Undeclared servers and unrelated settings remain. Servers are never launched or contacted by Skillet;
+restart or reload the agent to use the configuration. Native configuration rewrites can change formatting and comments;
+backups retain the original bytes.
+
 When `target.path` is omitted, the agent's environment variable and default home are used:
 
 | Agent | Environment variable | Default        |
@@ -135,13 +173,12 @@ skillet --file /path/to/skillet.yaml
 ```
 
 Planning leaves agent files unchanged. Applying takes a per-user lock at `~/.skillet/apply.lock`, rechecks the plan,
-retains backups under the selected agent's `.skillet/backups` directory, and replaces only declared skill and plugin
-bundles. The lock covers all selected agents, including shared skill destinations; its file remains after unlocking.
-Undeclared resources are left alone.
-Each resource class restores its own affected bundles and registry files if writing or verification fails. Earlier
-successful resource classes remain applied.
+retains backups under the selected agent's `.skillet/backups` directory, and replaces declared skill and plugin bundles
+and updates declared MCP connections. The lock covers all selected agents, including shared skill destinations; its file
+remains after unlocking. Undeclared resources are left alone. Each resource class restores its own affected bundles and
+registry files if writing or verification fails. Earlier successful resource classes remain applied.
 
-The planned full manifest format is documented in [`skillet.schema.yaml`](skillet.schema.yaml).
+The manifest format is documented in [`skillet.schema.yaml`](skillet.schema.yaml).
 
 ## License
 

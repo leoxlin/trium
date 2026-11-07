@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -33,7 +34,79 @@ type Manifest struct {
 	Targets []Target
 	Skills  []Declaration
 	Plugins []Declaration
+	MCPs    []MCP
 }
+
+// MCP declares either a stdio command or a Streamable HTTP endpoint.
+type MCP struct {
+	Name           string            `yaml:"name"`
+	Command        string            `yaml:"command,omitempty"`
+	Args           []string          `yaml:"args,omitempty"`
+	Env            map[string]string `yaml:"env,omitempty"`
+	Cwd            string            `yaml:"cwd,omitempty"`
+	URL            string            `yaml:"url,omitempty"`
+	Headers        map[string]string `yaml:"headers,omitempty"`
+	BearerTokenEnv string            `yaml:"bearer_token_env,omitempty"`
+}
+
+// ValidateMCPs also validates declarations constructed without Parse.
+func ValidateMCPs(servers []MCP) error {
+	seen := map[string]bool{}
+	for i, server := range servers {
+		field := fmt.Sprintf("mcps[%d]", i)
+		if !namePattern.MatchString(server.Name) || seen[server.Name] {
+			return invalid(field+".name", "invalid or duplicate resource name")
+		}
+		seen[server.Name] = true
+		if (server.Command == "") == (server.URL == "") {
+			return invalid(field, "requires exactly one of command or url")
+		}
+		if server.Command != "" {
+			if strings.TrimSpace(server.Command) == "" || hasControl(server.Command) {
+				return invalid(field+".command", "must be a non-empty command without control characters")
+			}
+			if server.Headers != nil || server.BearerTokenEnv != "" {
+				return invalid(field, "stdio servers cannot have headers or bearer_token_env")
+			}
+		} else {
+			endpoint, err := url.Parse(server.URL)
+			if err != nil || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.Hostname() == "" || hasControl(server.URL) {
+				return invalid(field+".url", "must be an absolute HTTP or HTTPS URL")
+			}
+			if server.Args != nil || server.Env != nil || server.Cwd != "" {
+				return invalid(field, "HTTP servers cannot have args, env, or cwd")
+			}
+		}
+		if hasControl(server.Cwd) {
+			return invalid(field+".cwd", "must not contain control characters")
+		}
+		for key, value := range server.Env {
+			if !envPattern.MatchString(key) || strings.ContainsRune(value, 0) {
+				return invalid(field+".env", "requires environment variable names and values without NUL")
+			}
+		}
+		for _, arg := range server.Args {
+			if strings.ContainsRune(arg, 0) {
+				return invalid(field+".args", "must not contain NUL")
+			}
+		}
+		for key, value := range server.Headers {
+			if !headerPattern.MatchString(key) || hasControl(value) {
+				return invalid(field+".headers", "requires HTTP header names and values without control characters")
+			}
+			if server.BearerTokenEnv != "" && strings.EqualFold(key, "Authorization") {
+				return invalid(field+".headers", "Authorization and bearer_token_env are mutually exclusive")
+			}
+		}
+		if server.BearerTokenEnv != "" && !envPattern.MatchString(server.BearerTokenEnv) {
+			return invalid(field+".bearer_token_env", "must be an environment variable name")
+		}
+	}
+	return nil
+}
+
+var envPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var headerPattern = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
 
 type Declaration struct {
 	Name   string
@@ -118,11 +191,32 @@ func Parse(data []byte) (Manifest, error) {
 		seenTargets[target] = true
 		selected = append(selected, target)
 	}
-	if len(doc.MCPs) != 0 {
-		return Manifest{}, invalid("mcps", "MCPs are not supported by this tracer bullet")
-	}
 
 	result := Manifest{Targets: selected}
+	for i, node := range doc.MCPs {
+		data, err := yaml.Marshal(&node)
+		if err != nil {
+			return Manifest{}, err
+		}
+		var server MCP
+		decoder := yaml.NewDecoder(bytes.NewReader(data))
+		decoder.KnownFields(true)
+		if err := decoder.Decode(&server); err != nil {
+			return Manifest{}, invalid(fmt.Sprintf("mcps[%d]", i), err.Error())
+		}
+		// Check presence as well as values, so empty fields cannot mix transports.
+		for j := 0; j < len(node.Content); j += 2 {
+			key := node.Content[j].Value
+			value := node.Content[j+1]
+			if (key == "command" || key == "url" || key == "cwd" || key == "bearer_token_env") && value.Value == "" {
+				return Manifest{}, invalid(fmt.Sprintf("mcps[%d].%s", i, key), "must not be empty")
+			}
+		}
+		result.MCPs = append(result.MCPs, server)
+	}
+	if err := ValidateMCPs(result.MCPs); err != nil {
+		return Manifest{}, err
+	}
 	for _, group := range []struct {
 		kind         string
 		declarations []bundleDecl

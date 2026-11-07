@@ -55,6 +55,23 @@ Only registrations at Skillet's managed local paths are eligible for update. Ext
 missing bundles, orphan bundles, and unsafe paths block apply. Equal bundle content with disabled native state or a
 changed cache requires an update. Plugins are enabled for later agent sessions; installation executes no plugin content.
 
+## MCP servers
+
+`mcps.go` plans a separate native-file batch after skills and plugins. Codex uses `config.toml`'s `mcp_servers`;
+Kimi uses `mcp.json`'s `mcpServers`. Claude uses user-scope `mcpServers` in `<user-home>/.claude.json`, or
+`<agent-home>/.claude.json` when its configuration directory or target path is explicitly selected.
+The CLI supplies the explicit Claude state path through `Homes.ClaudeConfig` when `CLAUDE_CONFIG_DIR` is set.
+
+Stdio maps command, arguments, environment, and working directory. Claude rejects working directories during
+preparation. HTTP maps URLs and headers; token references use Codex's `bearer_token_env_var`, Kimi's
+`bearerTokenEnvVar`, and Claude's Authorization header with a native environment reference. Skillet never resolves token
+values. Declared connection fields are replaced, including stale transport fields, while unrelated native server options
+remain. Codex and Kimi entries are enabled; Claude's separate approval and disable policies are preserved.
+
+Native format references: [Codex](https://developers.openai.com/codex/mcp),
+[Claude](https://code.claude.com/docs/en/mcp), and
+[Kimi](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/mcp).
+
 ## Native documents
 
 JSON decoding preserves unknown fields and numeric values and rejects duplicate keys, multiple documents, and non-object

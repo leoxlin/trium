@@ -1,12 +1,12 @@
 # Skillet architecture
 
-Status: implemented for skills and plugins. MCP declarations remain unsupported.
+Status: implemented for skills, plugins, and MCP server configurations.
 
 ## Modules
 
-Skillet has four internal modules. Manifest parsing produces declarations. Bundle acquisition produces immutable
-snapshots. Reconciliation turns those snapshots into verified native state. The CLI supplies process configuration and
-renders results.
+Skillet has four internal modules. Manifest parsing produces bundle and MCP declarations. Bundle acquisition produces
+immutable snapshots. Reconciliation turns those snapshots into verified native state. The CLI supplies process
+configuration and renders results.
 
 | Module | Files | Responsibility |
 | --- | --- | --- |
@@ -14,7 +14,7 @@ renders results.
 | `manifest` | `manifest.go` | Strict YAML decoding and declaration validation |
 | `bundle` | `reference.go`, `snapshot.go`, `local.go`, `git.go` | Source references, safe acquisition, file snapshots, fingerprints |
 | `reconcile` | `run.go`, `model.go` | Preparation, target ordering, public reports, Plan/Apply |
-| `reconcile` | `skills.go`, `plugins.go` | Shared resource validation and planning |
+| `reconcile` | `skills.go`, `plugins.go`, `mcps.go` | Shared resource validation and planning |
 | `reconcile` | `codex.go`, `claude.go`, `kimi.go` | Private native adapters and registry codecs |
 | `reconcile` | `files.go`, `lock.go` | Observations, replacements, backups, rollback, apply locking |
 
@@ -36,7 +36,7 @@ reconciliation.
 1. The CLI reads exactly the requested manifest file, or the default `~/.config/skillet.yaml`.
 2. `manifest.Parse` returns targets and source references. Referenced directories and repositories need not exist yet.
 3. `reconcile.Prepare` resolves target overrides from explicit homes and acquires each declared bundle once.
-4. Preparation validates skill metadata and plugin metadata for every selected target before inspecting native state.
+4. Preparation validates skill and plugin metadata and MCP capabilities for every target before inspecting native state.
 5. `Prepared.Plan` inspects current native state and returns displayable reports without writing agent state.
 6. `Prepared.Apply` takes one per-user lock and computes a fresh private plan for each target before writing it.
 
@@ -48,12 +48,14 @@ method. Reusing it retains the same source snapshots; preparing again refreshes 
 - A declared skill or plugin owns its complete installed bundle. Replacement removes stale files inside that bundle.
 - Native plugin registration and enabled state are reconciled with the bundle.
 - Undeclared resources and unrelated native configuration are preserved.
-- Skills and plugins have separate namespaces, even when they share a name.
+- Skills, plugins, and MCPs have separate namespaces, even when they share a name.
+- Declared MCPs own connection fields; unrelated native server policy and undeclared entries remain.
 - Native paths, ownership rules, and codecs belong to the corresponding private adapter.
 - Expected ownership conflicts block all resource writes for that target. Invalid native documents are errors.
 
-Targets are processed in declaration order; resource classes run in skills/plugins order. A failed or conflicted target
-stops apply. Earlier verified targets and resource classes remain applied. There is no transaction across targets.
+Targets are processed in declaration order; resource classes run in skills/plugins/mcps order. A failed or conflicted
+target stops apply. Earlier verified targets and resource classes remain applied. There is no transaction across
+targets.
 
 ## Filesystem and concurrency
 

@@ -14,9 +14,10 @@ backups. Output is deterministic by target order, resource class, and resource n
 1. Acquire the per-user advisory lock at `<user-home>/.skillet/apply.lock`.
 2. For each target, compute a fresh private plan from the prepared snapshots and current native state.
 3. If planning fails or any class has conflicts, stop before resource writes for that target.
-4. Apply nonempty batches in skills/plugins order.
-5. Return completed changes, backup paths, and warnings, including partial results on failure.
-6. Release the lock on every return path.
+4. Apply nonempty batches in skills/plugins/mcps order.
+5. Replan MCP writes after the preceding classes so shared native files retain verified plugin changes.
+6. Return completed changes, backup paths, and warnings, including partial results on failure.
+7. Release the lock on every return path.
 
 The Unix advisory lock is nonblocking. A held lock fails apply. Its file persists, while ownership ends when the
 process closes its descriptor or exits. Preview does not interact with it. A shared user lock also covers Codex skills
@@ -56,11 +57,14 @@ lock; observation checks reduce drift risk without eliminating every race with e
 
 Only declared resources are reconciled. A complete named bundle is replaced, so stale files inside it are removed.
 Sibling bundles and unrelated configuration are preserved. Plugins from other sources or scopes conflict rather than
-being taken over. Skills and plugins with the same name remain separate.
+being taken over. Skills, plugins, and MCPs with the same name remain separate. Declared MCP entries replace connection
+fields while preserving unrelated native options; undeclared entries are not pruned. MCP entry digests use canonical
+JSON.
 
 After a successful apply, another plan against the same prepared snapshots and unchanged native state reports no
 changes. A second apply creates no new backups. Plugin runtime behavior and successful agent loading are outside this
-installation guarantee; Skillet never runs plugin code or skill scripts.
+installation guarantee; Skillet never runs plugin code, skill scripts, or MCP commands and does not contact MCP
+endpoints.
 
 ## Exit status
 

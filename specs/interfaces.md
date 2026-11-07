@@ -9,6 +9,7 @@ type Manifest struct {
     Targets []Target
     Skills  []Declaration
     Plugins []Declaration
+    MCPs    []MCP
 }
 
 type Target struct { Agent, Path string }
@@ -21,8 +22,9 @@ type ValidationError struct { Field, Message string }
 ```
 
 `Parse` accepts exactly one version-1 YAML document. It rejects unknown fields, nulls, duplicate declarations, invalid
-names, unsupported agents, invalid target paths, and incompatible source fields. Target order is preserved. Skill and
-plugin names are independent.
+names, unsupported agents, invalid target paths, and incompatible source fields. Target order is preserved. Skill,
+plugin, and MCP names are independent. MCP declarations require exactly one stdio command or HTTP URL, with
+transport-specific fields.
 
 Parsing performs no filesystem access, environment lookup, or network activity. It calls the pure source-reference
 parser and adds declaration context to its errors. A valid reference to absent content can be parsed successfully.
@@ -71,7 +73,10 @@ underlying errors.
 ## Reconciliation
 
 ```go
-type Homes struct { User, Codex, Claude, Kimi string }
+type Homes struct {
+    User, Codex, Claude, Kimi string
+    ClaudeConfig string // Optional explicit user-state path
+}
 type Prepared struct { /* private snapshots and native adapters */ }
 
 func Prepare(ctx context.Context, spec manifest.Manifest,
@@ -80,24 +85,27 @@ func (p *Prepared) Plan(ctx context.Context) ([]TargetPlan, error)
 func (p *Prepared) Apply(ctx context.Context) ([]TargetResult, error)
 ```
 
-All homes and the manifest base directory must be absolute. Reconciliation reads no process environment. A manifest
-`~/` target override is resolved against `Homes.User`; a target without an override uses its supplied agent home.
-Duplicate resolved targets are rejected.
+All homes and the manifest base directory must be absolute. Reconciliation reads no process environment. A manifest `~/`
+target override is resolved against `Homes.User`; a target without an override uses its supplied agent home. Duplicate
+resolved targets are rejected. `Homes.ClaudeConfig`, when supplied, must be absolute and selects the user-state file for
+a Claude target without a path override. Otherwise a default Claude home uses `<user-home>/.claude.json`, and a
+relocated home uses `<agent-home>/.claude.json`.
 
 Preparation acquires every declaration once, sorts resources by name, validates skill frontmatter, and validates native
-plugin metadata for all selected agents. Native validation performs no target I/O. An invalid later target's plugin
-metadata therefore fails before any earlier target is applied. Acquired-content failures use `InputError{Field, Err}`;
-I/O failures remain operational errors with declaration context.
+plugin metadata for all selected agents. MCP declarations are copied and sorted; relative working directories resolve
+against the manifest directory. Claude rejects MCP working directories before target I/O. Native validation performs no
+target I/O. An invalid later target's plugin metadata therefore fails before any earlier target is applied.
+Acquired-content failures use `InputError{Field, Err}`; I/O failures remain operational errors with declaration context.
 
-`Plan` returns targets in declaration order and changes in skills/plugins order, sorted by name. It never creates target
-files, directories, locks, or backups. It stops on an operational error and can return earlier target reports.
+`Plan` returns targets in declaration order and changes in skills/plugins/mcps order, sorted by name. It never creates
+target files, directories, locks, or backups. It stops on an operational error and can return earlier target reports.
 
 `Apply` takes the per-user lock and computes its own private plan against current native state. Public reports cannot be
 submitted for execution. All resource classes must pass conflict preflight before a target is written. Apply stops at
 the first conflict or operational error, retaining earlier successes and returning partial results.
 
 ```go
-type Kind string   // Skills, Plugins
+type Kind string   // Skills, Plugins, MCPs
 type Action string // Add, Update, Unchanged, Conflict
 
 type Change struct {
@@ -124,8 +132,9 @@ type TargetResult struct {
 }
 ```
 
-Digests describe bundle content. A plugin can require an update with equal before/after digests because its enabled
-state or native cache differs. Reasons explain those changes. The before digest is meaningful only for existing content.
+Digests describe bundle content or canonical JSON for a native MCP entry. A plugin can require an update with equal
+before/after digests because its enabled state or native cache differs. Reasons explain those changes. The before digest
+is meaningful only for existing content.
 
 A conflicted plan is returned without an operational error; callers inspect `HasConflicts`. On an apply error, results
 include earlier targets and the attempted target when planning began. Only verified resource classes appear in

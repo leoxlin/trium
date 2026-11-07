@@ -126,24 +126,31 @@ $defs:
         default: []
       env:
         type: object
+        propertyNames:
+          pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
         additionalProperties:
           type: string
         default: {}
       cwd:
         type: string
         minLength: 1
+        description: Working directory; relative to the manifest directory. Unsupported for Claude targets.
       url:
         type: string
         format: uri
         pattern: '^https?://'
       headers:
         type: object
+        propertyNames:
+          pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
         additionalProperties:
           type: string
+          pattern: '^[^\x00-\x1F\x7F-\x9F]*$'
         default: {}
       bearer_token_env:
         type: string
         pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
+        description: Token environment variable name; cannot accompany an Authorization header (case-insensitive).
     oneOf:
       - title: Stdio server
         required:

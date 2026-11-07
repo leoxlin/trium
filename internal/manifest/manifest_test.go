@@ -70,3 +70,60 @@ func TestParseGitRejectsInvalidDeclarations(t *testing.T) {
 		})
 	}
 }
+
+func TestMCPDeclarations(t *testing.T) {
+	spec, err := manifest.Parse([]byte(`version: 1
+target: {agent: codex}
+mcps:
+ - name: local
+   command: server
+   args: [one, two]
+   env: {TOKEN: literal}
+   cwd: .
+ - name: remote
+   url: https://example.com/mcp
+   headers: {X-Client: skillet}
+   bearer_token_env: MCP_TOKEN
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spec.MCPs) != 2 || spec.MCPs[0].Cwd != "." || spec.MCPs[1].BearerTokenEnv != "MCP_TOKEN" {
+		t.Fatalf("MCPs = %#v", spec.MCPs)
+	}
+	for name, declaration := range map[string]string{
+		"missing transport":      "name: server",
+		"both transports":        "name: server, command: server, url: https://example.com",
+		"unknown field":          "name: server, command: server, typo: true",
+		"duplicate keys":         "name: server, command: one, command: two",
+		"invalid name":           "name: BAD, command: server",
+		"empty command":          "name: server, command: ''",
+		"empty cwd":              "name: server, command: server, cwd: ''",
+		"empty url with command": "name: server, command: server, url: ''",
+		"empty token":            "name: server, url: https://example.com, bearer_token_env: ''",
+		"stdio headers":          "name: server, command: server, headers: {}",
+		"stdio token":            "name: server, command: server, bearer_token_env: TOKEN",
+		"http args":              "name: server, url: https://example.com, args: []",
+		"http env":               "name: server, url: https://example.com, env: {}",
+		"http cwd":               "name: server, url: https://example.com, cwd: .",
+		"invalid url":            "name: server, url: file:///tmp/server",
+		"missing host":           "name: server, url: https:///mcp",
+		"invalid token":          "name: server, url: https://example.com, bearer_token_env: bad-name",
+		"duplicate auth":         "name: server, url: https://example.com, bearer_token_env: TOKEN, headers: {authorization: secret}",
+		"invalid header":         "name: server, url: https://example.com, headers: {'bad header': value}",
+		"header injection":       `name: server, url: https://example.com, headers: {X-Test: "value\r\nInjected: value"}`,
+		"invalid env":            "name: server, command: server, env: {'bad=name': value}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := manifest.Parse([]byte("version: 1\ntarget: {agent: codex}\nmcps: [{" + declaration + "}]\n"))
+			var validation *manifest.ValidationError
+			if !errors.As(err, &validation) {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+	_, err = manifest.Parse([]byte("version: 1\ntarget: {agent: codex}\nmcps: [{name: same, command: one}, {name: same, command: two}]\n"))
+	if err == nil {
+		t.Fatal("duplicate MCP names accepted")
+	}
+}

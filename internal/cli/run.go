@@ -142,5 +142,8 @@ func resolveHomes() (reconcile.Homes, error) {
 			return reconcile.Homes{}, err
 		}
 	}
+	if os.Getenv("CLAUDE_CONFIG_DIR") != "" {
+		homes.ClaudeConfig = filepath.Join(homes.Claude, ".claude.json")
+	}
 	return homes, nil
 }

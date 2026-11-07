@@ -257,3 +257,64 @@ func TestPluginOnlyCLI(t *testing.T) {
 		}
 	}
 }
+
+func TestMCPCLI(t *testing.T) {
+	for _, scenario := range []string{"defaults", "environment", "explicit-default-claude", "target"} {
+		t.Run(scenario, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			for _, env := range []string{"CODEX_HOME", "CLAUDE_CONFIG_DIR", "KIMI_CODE_HOME"} {
+				t.Setenv(env, "")
+			}
+			codex, claude, kimi := filepath.Join(home, ".codex"), filepath.Join(home, ".claude"), filepath.Join(home, ".kimi-code")
+			claudeConfig := filepath.Join(home, ".claude.json")
+			if scenario == "environment" {
+				codex, claude, kimi = filepath.Join(home, "codex"), filepath.Join(home, "claude"), filepath.Join(home, "kimi")
+				t.Setenv("CODEX_HOME", codex)
+				t.Setenv("CLAUDE_CONFIG_DIR", claude)
+				t.Setenv("KIMI_CODE_HOME", kimi)
+				claudeConfig = filepath.Join(claude, ".claude.json")
+			}
+			if scenario == "explicit-default-claude" {
+				t.Setenv("CLAUDE_CONFIG_DIR", claude)
+				claudeConfig = filepath.Join(claude, ".claude.json")
+			}
+			targets := "target: [{agent: codex}, {agent: claude}, {agent: kimi}]\n"
+			if scenario == "target" {
+				claude = filepath.Join(home, "override")
+				targets = fmt.Sprintf("target: [{agent: claude, path: %q}]\n", claude)
+				claudeConfig = filepath.Join(claude, ".claude.json")
+			}
+			dir := t.TempDir()
+			path := filepath.Join(dir, "skillet.yaml")
+			if err := os.WriteFile(path, []byte("version: 1\n"+targets+"mcps: [{name: docs, url: https://example.com/mcp, bearer_token_env: MCP_TOKEN}]\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr bytes.Buffer
+			if code := cli.Run(context.Background(), []string{"--file", path}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "mcps/docs") {
+				t.Fatalf("preview: %d %s %s", code, &stdout, &stderr)
+			}
+			if _, err := os.Stat(claudeConfig); !os.IsNotExist(err) {
+				t.Fatal("preview wrote config")
+			}
+			stdout.Reset()
+			if code := cli.Run(context.Background(), []string{"--file", path, "apply"}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "Applied: mcps/docs") {
+				t.Fatalf("apply: %d %s %s", code, &stdout, &stderr)
+			}
+			paths := []string{claudeConfig}
+			if scenario != "target" {
+				paths = append(paths, filepath.Join(codex, "config.toml"), filepath.Join(kimi, "mcp.json"))
+			}
+			for _, installed := range paths {
+				info, err := os.Stat(installed)
+				if err != nil || info.Mode().Perm() != 0o600 {
+					t.Fatalf("native file: %s %v %v", installed, info, err)
+				}
+			}
+			stdout.Reset()
+			if code := cli.Run(context.Background(), []string{"--file", path, "apply"}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Backup:") || !strings.Contains(stdout.String(), "No changes (1 unchanged).") {
+				t.Fatalf("no-op: %d %s %s", code, &stdout, &stderr)
+			}
+		})
+	}
+}

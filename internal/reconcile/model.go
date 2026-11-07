@@ -11,6 +11,7 @@ type Kind string
 const (
 	Skills  Kind = "skills"
 	Plugins Kind = "plugins"
+	MCPs    Kind = "mcps"
 )
 
 type Action string
