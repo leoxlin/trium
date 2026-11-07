@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	agent "github.com/leoxlin/skillets/internal/agents"
+	"github.com/leoxlin/skillets/internal/agents/claude"
 	"github.com/leoxlin/skillets/internal/agents/codex"
 	"github.com/leoxlin/skillets/internal/agents/kimi"
 	"github.com/leoxlin/skillets/internal/engine"
@@ -125,6 +126,11 @@ func discover(target manifest.Target) (agent.Agent, error) {
 			if targetHome == "" {
 				targetHome = filepath.Join(home, ".codex")
 			}
+		case "claude":
+			targetHome = os.Getenv("CLAUDE_CONFIG_DIR")
+			if targetHome == "" {
+				targetHome = filepath.Join(home, ".claude")
+			}
 		case "kimi":
 			targetHome = os.Getenv("KIMI_CODE_HOME")
 			if targetHome == "" {
@@ -142,6 +148,8 @@ func discover(target manifest.Target) (agent.Agent, error) {
 			Home:       targetHome,
 			SkillsRoot: filepath.Join(home, ".agents", "skills"),
 		}), nil
+	case "claude":
+		return claude.New(claude.Target{Home: targetHome}), nil
 	case "kimi":
 		return kimi.New(kimi.Target{Home: targetHome}), nil
 	default:

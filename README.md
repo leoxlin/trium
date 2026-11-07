@@ -8,8 +8,8 @@
 
 ## Tracer bullet
 
-The current implementation reconciles local and Git-sourced directory-form skills for Codex and Kimi Code. Claude,
-plugins, and MCP servers remain in the design but are not implemented.
+The current implementation reconciles local and Git-sourced directory-form skills for Codex, Claude Code, and Kimi Code.
+Plugins and MCP servers remain in the design but are not implemented.
 
 Build the CLI:
 
@@ -22,18 +22,19 @@ Create `~/.config/skillet.yaml`:
 ```yaml
 version: 1
 target:
-  agent: codex # codex or kimi
+  agent: codex # codex, claude, or kimi
 skills:
   - name: code-review
     source: local
     path: skills/code-review
 ```
 
-To manage both agents with the same skills, use a non-empty target list:
+To manage multiple agents with the same skills, use a non-empty target list:
 
 ```yaml
 target:
   - agent: codex
+  - agent: claude
   - agent: kimi
 ```
 
@@ -42,7 +43,10 @@ a failure stops the remaining targets. Earlier successful targets remain applied
 
 With `source: local` or `source` omitted, `path` selects a local directory relative to the manifest. It must contain
 `SKILL.md` with matching `name` and a non-empty `description` in its YAML frontmatter. Codex installs into
-`~/.agents/skills`; Kimi installs into `$KIMI_CODE_HOME/skills`.
+`~/.agents/skills`; Claude installs into `$CLAUDE_CONFIG_DIR/skills` (default `~/.claude/skills`);
+Kimi installs into `$KIMI_CODE_HOME/skills`.
+
+Claude reserves the name `synced`; targets inside `.trash`, synced catalogs, or symlinked paths produce conflicts.
 
 For a Git skill, set `source` to the repository and `path` to the skill directory within it:
 
@@ -87,6 +91,7 @@ When `target.path` is omitted, the agent's environment variable and default home
 | Agent | Environment variable | Default        |
 | ----- | -------------------- | -------------- |
 | Codex | `CODEX_HOME`         | `~/.codex`     |
+| Claude | `CLAUDE_CONFIG_DIR` | `~/.claude` |
 | Kimi  | `KIMI_CODE_HOME`     | `~/.kimi-code` |
 
 Set `target.path` to an absolute path or one starting with `~/` to override the agent home. Codex's shared skill

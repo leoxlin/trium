@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -143,5 +144,77 @@ func TestMultipleTargetsPlanApplyPlan(t *testing.T) {
 	}
 	if strings.Count(stdout.String(), "No changes (1 unchanged).") != 2 {
 		t.Fatalf("second plan output:\n%s", stdout.String())
+	}
+}
+
+func TestClaudePlanApplyPlan(t *testing.T) {
+	for _, mode := range []string{"default", "environment", "absolute override", "home override"} {
+		t.Run(mode, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("CLAUDE_CONFIG_DIR", "")
+			target := filepath.Join(home, ".claude")
+			override := ""
+			if mode != "default" {
+				target = filepath.Join(home, "relocated-claude")
+				t.Setenv("CLAUDE_CONFIG_DIR", target)
+			}
+			if mode == "absolute override" || mode == "home override" {
+				target = filepath.Join(home, "override")
+				override = target
+				if mode == "home override" {
+					override = "~/override"
+				}
+			}
+			dir := t.TempDir()
+			skill := filepath.Join(dir, "skill")
+			if err := os.Mkdir(skill, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			contents := "---\nname: review\ndescription: Review code\n---\nReview carefully.\n"
+			if err := os.WriteFile(filepath.Join(skill, "SKILL.md"), []byte(contents), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			declaration := "version: 1\ntarget:\n  agent: claude\n"
+			if override != "" {
+				declaration += fmt.Sprintf("  path: %q\n", override)
+			}
+			declaration += "skills:\n  - name: review\n    path: skill\n"
+			path := filepath.Join(dir, "skillet.yaml")
+			if err := os.WriteFile(path, []byte(declaration), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr bytes.Buffer
+			run := func(apply bool) string {
+				t.Helper()
+				stdout.Reset()
+				stderr.Reset()
+				args := []string{"--file", path}
+				if apply {
+					args = append(args, "apply")
+				}
+				if code := cli.Run(context.Background(), args, &stdout, &stderr); code != 0 {
+					t.Fatalf("exit %d: %s", code, stderr.String())
+				}
+				return stdout.String()
+			}
+			if output := run(false); !strings.Contains(output, "ADD") {
+				t.Fatalf("plan: %s", output)
+			}
+			if _, err := os.Stat(target); !os.IsNotExist(err) {
+				t.Fatalf("plan created target: %v", err)
+			}
+			run(true)
+			installed, err := os.ReadFile(filepath.Join(target, "skills", "review", "SKILL.md"))
+			if err != nil || string(installed) != contents {
+				t.Fatalf("installed = %q, %v", installed, err)
+			}
+			if output := run(false); !strings.Contains(output, "No changes (1 unchanged)") {
+				t.Fatalf("second plan: %s", output)
+			}
+			if output := run(true); strings.Contains(output, "Backup:") {
+				t.Fatalf("second apply: %s", output)
+			}
+		})
 	}
 }

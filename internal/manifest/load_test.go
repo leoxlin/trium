@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leoxlin/skillets/internal/agents/claude"
 	"github.com/leoxlin/skillets/internal/agents/kimi"
 	"github.com/leoxlin/skillets/internal/engine"
 	"github.com/leoxlin/skillets/internal/manifest"
@@ -59,7 +60,6 @@ func TestLoadRejectsInvalidInput(t *testing.T) {
 		"relative list path":    "version: 1\ntarget:\n  - agent: kimi\n    path: relative\n",
 		"duplicate target keys": "version: 1\ntarget:\n  - agent: kimi\n    agent: codex\n",
 
-		"claude":          "version: 1\ntarget:\n  agent: claude\n",
 		"plugins":         "version: 1\ntarget:\n  agent: kimi\nplugins:\n  - name: nope\n    source: nope\n",
 		"legacy github":   "version: 1\ntarget:\n  agent: codex\nskills:\n  - name: review\n    github: owner/repo\n",
 		"unknown field":   "version: 1\ntarget:\n  agent: kimi\nunknown: true\n",
@@ -317,5 +317,29 @@ func TestLoadGitFailures(t *testing.T) {
 		"version: 1\ntarget:\n  agent: kimi\nskills:\n  - name: review\n    source: example/missing\n"))
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation error = %v", err)
+	}
+}
+
+func TestLoadGitClaudeSkill(t *testing.T) {
+	repo := t.TempDir()
+	writeSkill(t, repo, "review", "review", "Review code")
+	git(t, repo, "init", "-b", "main")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-m", "initial")
+	gitRemote(t, repo)
+	path := writeManifest(t, t.TempDir(), "version: 1\ntarget:\n  agent: claude\nskills:\n  - name: review\n    source: https://example.com/skills.git\n    path: skills/review\n")
+	loaded, err := manifest.Load(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	target := claude.New(claude.Target{Home: home})
+	runner := engine.Engine{}
+	if _, _, err := runner.Apply(context.Background(), target, loaded.Desired); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := runner.Plan(context.Background(), target, loaded.Desired)
+	if err != nil || len(plan.Skills.Changes) != 1 || plan.Skills.Changes[0].Action != resource.Unchanged {
+		t.Fatalf("plan after Git apply = %#v, %v", plan, err)
 	}
 }

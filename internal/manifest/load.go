@@ -119,8 +119,8 @@ func Load(ctx context.Context, path string) (Manifest, error) {
 		if err := decoder.Decode(&declaration); err != nil {
 			return Manifest{}, invalid(field, err.Error())
 		}
-		if declaration.Agent != "codex" && declaration.Agent != "kimi" {
-			return Manifest{}, invalid(field+".agent", "must be codex or kimi")
+		if declaration.Agent != "codex" && declaration.Agent != "claude" && declaration.Agent != "kimi" {
+			return Manifest{}, invalid(field+".agent", "must be codex, claude, or kimi")
 		}
 		if err := validateTargetPath(declaration.Path); err != nil {
 			return Manifest{}, invalid(field+".path", err.Error())
