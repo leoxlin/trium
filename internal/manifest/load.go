@@ -16,7 +16,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/leoxlin/skillets/internal/agents/shared"
 	"github.com/leoxlin/skillets/internal/resource"
 )
 
@@ -241,7 +240,7 @@ func loadGitSkill(ctx context.Context, manifestDir string, declaration skillDecl
 		return resource.Skill{}, invalid(field+".path", "must stay inside the repository and contain no control characters")
 	}
 
-	source, files, err := shared.SnapshotGit(ctx, manifestDir, repository, ref, bundlePath)
+	source, files, err := resource.SnapshotGit(ctx, manifestDir, repository, ref, bundlePath)
 	if err != nil {
 		var unsafe *resource.UnsafePathError
 		if errors.As(err, &unsafe) {

@@ -31,7 +31,7 @@ its repository, requested ref, and resolved commit for diagnostics. Both forms u
 staging behavior. Source locations and resolved commits never participate in fingerprints.
 
 The skillet loader acquires every declared Git bundle once, before agent discovery. It delegates ref resolution and Git
-archive acquisition to `agents/shared`, validates the selected bundle, and returns the snapshot as part of
+archive acquisition to `resource`, validates the selected bundle, and returns the snapshot as part of
 `resource.Desired`. Tests use local repositories and Git URL rewrites. Agent adapters receive acquired snapshots and
 never acquire source content themselves. Apply therefore uses the same remote
 snapshot in its fresh plan and writes, even if the upstream ref moves during that invocation.

@@ -82,8 +82,8 @@ lifecycles; agent adapters receive validated snapshots without knowing how they 
 ### Dependency rules
 
 - `resource` has no dependencies on other Skillet modules.
-- `manifest` emits `resource.Desired` and may use `agents/shared` for acquisition. It does not depend on agent
-  implementations or native configuration formats.
+- `manifest` emits `resource.Desired` and uses `resource` for local and Git acquisition. It does not depend on
+  agent implementations or native configuration formats.
 - `engine` depends only on `agents` and `resource`.
 - Agent implementations depend on `agents` and `resource`, never on `engine`, `cli`, or `manifest`.
 - The CLI is the only module that chooses an agent implementation from a name.

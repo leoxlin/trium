@@ -1,4 +1,4 @@
-package shared
+package resource
 
 import (
 	"archive/tar"
@@ -11,13 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/leoxlin/skillets/internal/resource"
 )
 
 // SnapshotGit acquires a validated repository ref and bundle path relative to workingDir.
 // It returns the resolved source and files, removing its temporary repository before returning.
-func SnapshotGit(ctx context.Context, workingDir, repositoryURL, ref, bundlePath string) (string, []resource.File, error) {
+func SnapshotGit(ctx context.Context, workingDir, repositoryURL, ref, bundlePath string) (string, []File, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	temporary, err := os.MkdirTemp("", "skillet-git-*")
@@ -63,7 +61,7 @@ func SnapshotGit(ctx context.Context, workingDir, repositoryURL, ref, bundlePath
 	}
 	for _, entry := range bytes.Split(entries, []byte{0}) {
 		if bytes.HasPrefix(entry, []byte("160000 ")) {
-			return "", nil, &resource.UnsafePathError{Path: bundlePath, Reason: "skill bundles cannot contain submodules"}
+			return "", nil, &UnsafePathError{Path: bundlePath, Reason: "skill bundles cannot contain submodules"}
 		}
 	}
 	archive, err := run("--git-dir="+repository, "archive", "--format=tar", tree)
@@ -71,7 +69,7 @@ func SnapshotGit(ctx context.Context, workingDir, repositoryURL, ref, bundlePath
 		return "", nil, err
 	}
 	reader := tar.NewReader(bytes.NewReader(archive))
-	var files []resource.File
+	var files []File
 	for {
 		header, err := reader.Next()
 		if err == io.EOF {
@@ -81,20 +79,20 @@ func SnapshotGit(ctx context.Context, workingDir, repositoryURL, ref, bundlePath
 			return "", nil, fmt.Errorf("read Git archive: %w", err)
 		}
 		if !filepath.IsLocal(header.Name) || strings.Contains(header.Name, `\`) {
-			return "", nil, &resource.UnsafePathError{Path: header.Name, Reason: "unsafe archive path"}
+			return "", nil, &UnsafePathError{Path: header.Name, Reason: "unsafe archive path"}
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
 			continue
 		case tar.TypeReg:
 		default:
-			return "", nil, &resource.UnsafePathError{Path: header.Name, Reason: "skill bundles cannot contain links or special files"}
+			return "", nil, &UnsafePathError{Path: header.Name, Reason: "skill bundles cannot contain links or special files"}
 		}
 		data, err := io.ReadAll(reader)
 		if err != nil {
 			return "", nil, fmt.Errorf("read Git file: %w", err)
 		}
-		files = append(files, resource.File{Path: header.Name, Data: data, Executable: header.Mode&0o111 != 0})
+		files = append(files, File{Path: header.Name, Data: data, Executable: header.Mode&0o111 != 0})
 	}
 	source := repositoryURL + "@" + sha + ":" + bundlePath
 	return source, files, nil
