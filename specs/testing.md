@@ -5,7 +5,7 @@ native targets, not mocks of the interface being tested.
 
 ## Unit Coverage
 
-### Skillet module
+### Manifest module
 
 Use table-driven tests for:
 
@@ -42,10 +42,11 @@ Golden tests cover stable grouping and sorting, all actions, empty diffs, confli
 redaction of every MCP environment/header value. Tests assert that Plan leaves a complete temporary filesystem
 byte-for-byte unchanged, including absence of lock, backup, and newly created parent directories.
 
-## Adapter contract suite
+## Adapter contract suites
 
-Define one reusable test suite and run it independently for Codex, Claude, and Kimi with explicit temporary target
-structs. Every agent must pass the same behavioral cases:
+Shared resource behavior tests belong with their implementation, such as `internal/agents/shared/store_test.go`.
+Each agent has its own backend test file with explicit temporary targets for discovery, wiring, and lock integration.
+The suites collectively cover these behavioral cases:
 
 1. Empty targets produce additions for every resource class.
 2. Apply installs native state that the same adapter reads back as unchanged.

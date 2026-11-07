@@ -52,21 +52,21 @@ behind the resource interface. This is a deeper module and keeps agent-specific 
 ```text
 cmd/skillet
     └── internal/cli
-          ├── internal/skillet
+          ├── internal/manifest
           ├── internal/engine
-          └── internal/agents/{codex,claude,kimi}
-                               └── internal/agent
+          └── internal/agents
+                └── {codex,claude,kimi}
 internal/engine ────────────────┘
-internal/skillet ───> internal/resource <─── internal/agent
+internal/manifest ───> internal/resource <─── internal/agents
 ```
 
 | Module                   | Responsibility                                                                     | Must not know                     |
 | ------------------------ | ---------------------------------------------------------------------------------- | --------------------------------- |
 | `cmd/skillet`            | Process entry point and exit status                                                | Manifest or native config details |
 | `internal/cli`           | Argument dispatch, output rendering, wiring                                        | Reconciliation algorithms         |
-| `internal/skillet`       | Strict YAML decoding, local/GitHub acquisition, validation, desired fingerprints   | Agent paths and formats           |
+| `internal/manifest`       | Strict YAML decoding, local/GitHub acquisition, validation, desired fingerprints   | Agent paths and formats           |
 | `internal/resource`      | Resource values, Plan/Apply interfaces, changes, reports, shared semantic differ   | Any specific agent                |
-| `internal/agent`         | Agent interface and the set of three resource interfaces                           | CLI or manifest decoding          |
+| `internal/agents`        | Agent interface, resource set, apply locking, and shared target paths              | CLI or manifest decoding          |
 | `internal/engine`        | Deterministic orchestration, apply locking, conflict preflight, result aggregation | Native serialization              |
 | `internal/agents/codex`  | Codex discovery, codecs, all three resource adapters                               | Other agents                      |
 | `internal/agents/claude` | Claude discovery, codecs, all three resource adapters                              | Other agents                      |
@@ -82,17 +82,17 @@ validation in one module instead of duplicating them across three agents and two
 ### Dependency rules
 
 - `resource` has no dependencies on other Skillet modules.
-- `skillet` emits `resource.Desired`; it does not import `agent` or an agent implementation. The CLI injects its HTTP
+- `manifest` emits `resource.Desired`; it does not import `agents` or an agent implementation. The CLI injects its HTTP
   client, and only this module makes GitHub requests.
-- `engine` depends only on `agent` and `resource`.
-- Agent implementations depend on `agent` and `resource`, never on `engine`, `cli`, or `skillet`.
+- `engine` depends only on `agents` and `resource`.
+- Agent implementations depend on `agents` and `resource`, never on `engine`, `cli`, or `manifest`.
 - The CLI is the only module that chooses an agent implementation from a name.
 
 ## Reconciliation flow
 
 1. The CLI loads `~/.config/skillet.yaml` by default, or exactly the path supplied by the global `--file` option. It
    does not search for or merge another manifest.
-2. The skillet module decodes and statically validates the complete document, including its single `target`. It resolves
+2. The manifest module decodes and statically validates the complete document, including its single `target`. It resolves
    local sources and acquires each declared GitHub source once into memory, then validates bundle content and computes
    semantic fingerprints.
 3. The CLI selects the agent factory named by `target.agent`. The factory resolves the optional `target.path` override,

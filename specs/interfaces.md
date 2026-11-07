@@ -160,7 +160,7 @@ The CLI converts these values into display-only rows. The engine does not format
 
 ## Agent interface
 
-`internal/agent` exposes one agent and its resource set.
+`internal/agents` exposes one agent and its resource set.
 
 ```go
 type Resources struct {
