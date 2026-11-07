@@ -1,180 +1,80 @@
-# Skillet Architecture
+# Skillet architecture
 
-Status: proposed
-
-## Purpose
-
-Skillet is a Go CLI that reconciles selected resources from one versioned manifest into one or more per-user Codex,
-Claude Code,
-or Kimi Code environments. Its primary seam is Plan/Apply: planning produces a semantic diff without changing the
-machine; applying recomputes that diff under a lock and installs the changes.
-
-This document describes the implementation design. Command examples and field definitions are interface contracts, not
-end-user documentation.
-
-## Scope and Assumptions
-
-- The initial scope is the current user's agent environments, not project, enterprise-managed, cloud, or remote
-  configuration.
-- Each manifest accepts one target mapping or a non-empty list of target mappings. Each optional target path
-  overrides that agent's home; otherwise its environment variable and default home are used.
-- Skills and plugins come from local directories or remote repositories. Remote configuration targets are outside
-  version 1.
-- MCP declarations support stdio and streamable HTTP. Hook management is outside version 1; existing native hooks remain
-  unmanaged. Other native capabilities remain representable in native configuration but are not managed by Skillet.
-- A skillet is additive and corrective. It adds or updates named resources but never deletes a resource merely because
-  it disappeared from the manifest.
-- Each resource adapter chooses whether to use direct native-file operations, the agent's CLI, or a hybrid. The engine
-  does not impose an execution strategy. Skillet never directly executes hooks, MCP servers, plugin code, or skill
-  scripts.
-- Native agent releases can change storage formats and management commands. Each adapter owns its compatibility and
-  fails explicitly rather than guessing at an unfamiliar shape or command.
-
-## Approaches considered
-
-1. **Semantic domain model with per-agent adapters — selected.** Each adapter owns native behavior, while the engine
-   gets deterministic diffs and a consistent Apply contract.
-2. **Invoke each agent's CLI — adapter-private option.** This requires less knowledge of native formats, but dry-run
-   support is weak, commands vary by version, and rollback is harder. It is not a global architecture requirement.
-3. **Render whole configuration files from templates — rejected.** Generation is simple, but it destroys unmanaged
-   settings and makes concurrent ownership unsafe.
-
-Direct files, CLI management commands, and hybrid implementations can coexist across resource classes and agents.
-Simple, documented file formats are good candidates for direct writes; registry-backed operations can use a native
-management command when that is safer. Whatever the choice, the adapter must preserve the same non-mutating Plan,
-target-digest, backup, error-reporting, and post-apply verification contracts.
-
-A second interface choice was to expose `Scan` plus `Apply` from every resource. The selected design instead exposes
-`Plan` plus `Apply`: scanning, native decoding, capability checks, canonicalization, and execution strategy are hidden
-behind the resource interface. This is a deeper module and keeps agent-specific behavior out of the engine.
+Status: implemented for skills and plugins. MCP declarations remain unsupported.
 
 ## Modules
 
-```text
-cmd/skillet
-    └── internal/cli
-          ├── internal/manifest
-          ├── internal/engine
-          └── internal/agents
-                └── {codex,claude,kimi}
-internal/engine ────────────────┘
-internal/manifest ───> internal/resource <─── internal/agents
-```
+Skillet has four internal modules. Manifest parsing produces declarations. Bundle acquisition produces immutable
+snapshots. Reconciliation turns those snapshots into verified native state. The CLI supplies process configuration and
+renders results.
 
-| Module                   | Responsibility                                                                     | Must not know                      |
-| ------------------------ | ---------------------------------------------------------------------------------- | ---------------------------------- |
-| `cmd/skillet`            | Process entry point and exit status                                                | Manifest or native config details  |
-| `internal/cli`           | Argument dispatch, output rendering, wiring                                        | Reconciliation algorithms          |
-| `internal/manifest`      | Strict YAML decoding, source resolution, validation, desired fingerprints          | Agent paths and formats            |
-| `internal/plugin`        | Native plugin manifest identity and version validation                             | Standalone skills and target state |
-| `internal/resource`      | Resource values, Plan/Apply interfaces, changes, reports, shared semantic differ   | Any specific agent                 |
-| `internal/agents`        | Agent interface, resource set, apply locking, and shared target paths              | CLI or manifest decoding           |
-| `internal/engine`        | Deterministic orchestration, apply locking, conflict preflight, result aggregation | Native serialization               |
-| `internal/agents/codex`  | Codex discovery, codecs, all three resource adapters                               | Other agents                       |
-| `internal/agents/claude` | Claude discovery, codecs, all three resource adapters                              | Other agents                       |
-| `internal/agents/kimi`   | Kimi discovery, codecs, all three resource adapters                                | Other agents                       |
+| Module | Files | Responsibility |
+| --- | --- | --- |
+| `cli` | `run.go`, `render.go` | Arguments, environment, manifest file reading, output, exit status |
+| `manifest` | `manifest.go` | Strict YAML decoding and declaration validation |
+| `bundle` | `reference.go`, `snapshot.go`, `local.go`, `git.go` | Source references, safe acquisition, file snapshots, fingerprints |
+| `reconcile` | `run.go`, `model.go` | Preparation, target ordering, public reports, Plan/Apply |
+| `reconcile` | `skills.go`, `plugins.go` | Shared resource validation and planning |
+| `reconcile` | `codex.go`, `claude.go`, `kimi.go` | Private native adapters and registry codecs |
+| `reconcile` | `files.go`, `lock.go` | Observations, replacements, backups, rollback, apply locking |
 
-Agent packages may share unexported filesystem and structured-file helpers through an internal package. Resource
-semantics must remain in the agent adapter; a shared helper must not turn into a lowest-common-denominator agent model.
+`cmd/skillet/main.go` supplies cancellation and process exit. Tests sit beside their implementation.
 
-Standalone skills and plugins have separate resource types, manifest loaders, and adapters. Native plugin manifest
-metadata lives in `internal/plugin`; `internal/resource` remains independent of agent formats.
-`internal/manifest/bundle.go` shares local and Git acquisition. `internal/agents/shared/filesystem.go` owns staging,
-backups, verification, and rollback for both stores. Agent-specific plugin registry codecs stay in each agent package.
+## Dependencies
 
-Source acquisition and validation happen before reconciliation. Shared acquisition helpers hide transport and resource
-lifecycles; agent adapters receive validated snapshots without knowing how they were acquired.
+- `bundle` uses the standard library and the Git executable for repository acquisition.
+- `manifest` uses YAML and the pure `bundle.ParseReference` operation. It performs no I/O or environment discovery.
+- `reconcile` accepts manifest declarations and bundle snapshots. Native adapters remain private to this module.
+- `cli` reads the manifest file, resolves the process environment, and calls the other modules.
 
-### Dependency rules
+There is no exported resource execution hierarchy, native registration protocol, or generic filesystem interface.
+The three native adapters share a private `validate`/`plan` seam. Common direct-file execution stays inside
+reconciliation.
 
-- `resource` has no dependencies on other Skillet modules.
-- `manifest` emits `resource.Desired` and uses `resource` for local and Git acquisition. It does not depend on
-  agent implementations or native configuration formats.
-- `engine` depends only on `agents` and `resource`.
-- Agent implementations depend on `agents` and `resource`, never on `engine`, `cli`, or `manifest`.
-- The CLI is the only module that chooses an agent implementation from a name.
+## Operation lifecycle
 
-## Reconciliation flow
+1. The CLI reads exactly the requested manifest file, or the default `~/.config/skillet.yaml`.
+2. `manifest.Parse` returns targets and source references. Referenced directories and repositories need not exist yet.
+3. `reconcile.Prepare` resolves target overrides from explicit homes and acquires each declared bundle once.
+4. Preparation validates skill metadata and plugin metadata for every selected target before inspecting native state.
+5. `Prepared.Plan` inspects current native state and returns displayable reports without writing agent state.
+6. `Prepared.Apply` takes one per-user lock and computes a fresh private plan for each target before writing it.
 
-1. The CLI loads `~/.config/skillet.yaml` by default, or exactly the path supplied by the global `--file` option. It
-   does not search for or merge another manifest.
-2. The manifest module validates the complete document, acquires declared bundles, and computes semantic fingerprints
-   before discovering targets.
-3. For each target in declaration order, the CLI selects the agent factory named by `target.agent`. The factory resolves
-   the optional `target.path` override,
-   then the agent-home environment variable and default, and discovers concrete per-user targets. Environment discovery
-   occurs only in this factory; adapters receive explicit paths.
-4. The engine calls `Plan` for every resource class in fixed order: skills, plugins, MCPs.
-5. Each resource adapter scans its writable user-scope targets, decodes native state, validates requested capabilities,
-   and returns semantic changes plus target digests. Resource planning performs no acquisition or network requests.
-6. The plan command renders changes and conflicts without changing agent state. Source acquisition may require network
-   access before planning begins.
-7. The apply command acquires the agent lock before repeating steps 4–5 with the already acquired sources. Any conflict
-   aborts before writes. Otherwise the engine applies each non-empty change set in the same fixed order and reports the
-   result.
+A prepared value owns only in-memory state. Temporary repositories are removed during acquisition. It has no cleanup
+method. Reusing it retains the same source snapshots; preparing again refreshes source content.
 
-Targets are processed in declaration order. A failure stops later targets; earlier successful targets remain applied.
-Locks, backups, and conflict checks are per target. There is no transaction across targets.
+## Ownership and scope
 
-There is no saved plan file or remote-source cache in version 1. Apply always plans against current native state, so a
-stale diff cannot be submitted for execution, and it stages the same source snapshots used to render that diff.
+- A declared skill or plugin owns its complete installed bundle. Replacement removes stale files inside that bundle.
+- Native plugin registration and enabled state are reconciled with the bundle.
+- Undeclared resources and unrelated native configuration are preserved.
+- Skills and plugins have separate namespaces, even when they share a name.
+- Native paths, ownership rules, and codecs belong to the corresponding private adapter.
+- Expected ownership conflicts block all resource writes for that target. Invalid native documents are errors.
 
-## Ownership model
+Targets are processed in declaration order; resource classes run in skills/plugins order. A failed or conflicted target
+stops apply. Earlier verified targets and resource classes remain applied. There is no transaction across targets.
 
-Skillet manages only the intersection of the manifest and each agent's writable user scope.
+## Filesystem and concurrency
 
-- **Skills and plugins:** a declared name owns the complete installed bundle. Updates may remove stale files inside that
-  bundle. Sibling bundles are untouched.
-- **MCPs:** a declared name owns the portable fields defined by the schema. Unrecognized native fields on the same entry
-  are preserved when the agent format permits them.
-- **Absent manifest entries:** no action. Version 1 has no prune operation.
+The bundle module reads source and installed directories into the same canonical snapshot representation. It rejects
+unsafe entries and paths. Reconciliation separately owns target observations and mutation lifecycles.
 
-An existing resource with the same name is compared by semantic fingerprint, not source path, modification time, or
-native file formatting. Native entries from plugins, project configuration, system policy, or built-in catalogs are not
-imported into standalone resource state.
+Every private write batch contains its read set and write set. The read set includes files that influence policy even
+when the batch does not write them, such as Codex's disabled-skill configuration. Reconciliation verifies observations
+before staging and again before commitment.
 
-## Integrity and failure behavior
+`Prepared.Apply` owns one advisory lock at `<user-home>/.skillet/apply.lock`. This serializes Skillet applies across
+relocated agent homes and their shared skill destinations. The persistent lock file is not deleted; the OS releases its
+lock when the descriptor closes or the process exits. Preview never takes the lock.
 
-- A missing target is empty state; a malformed or unreadable existing target is an error.
-- Invalid skillet input fails before agent scanning.
-- Expected incompatibilities—unsupported native capabilities, unsafe target types, or externally managed plugins—are
-  plan conflicts and block all mutations.
-- Every `Apply` verifies the digests captured by its `Plan` before modifying a target. A mismatch means concurrent drift
-  and aborts that resource.
-- Direct writes use a temporary file in the target directory followed by rename. Delegated native commands have their
-  native atomicity and must be followed by a fresh verification scan. Bundle replacement, multi-file registry updates,
-  and management commands are rollback-capable only to the extent the adapter can guarantee; none is globally atomic.
-- Each target the chosen strategy can change is backed up before commitment. An operational failure stops subsequent
-  resource classes and reports earlier successful changes and irreversible native side effects; there is no claim of a
-  cross-resource transaction.
-- Unrelated settings are preserved semantically. Byte-for-byte formatting and comments in rewritten JSON/TOML files are
-  not guaranteed; original bytes remain in the backup.
+The transaction implementation stages replacements beside destinations and copies original targets into per-agent
+backups. It then replaces targets and verifies the result. Detected failures restore affected targets in reverse order.
+Successful backups remain available. Failed restoration retains recovery files and emits warnings.
 
-See [engine.md](engine.md) for command and failure contracts.
+Individual file renames are atomic where supported. Multi-file operations are not globally atomic. Administrative
+parent directories and backup directories may remain after failure. Process-crash recovery is not automatic, and
+non-Skillet writers do not participate in the advisory lock.
 
-## Security constraints
-
-- Local source paths cannot escape the manifest directory, repository paths cannot escape their repository, and source
-  symlinks are rejected.
-- Source acquisition validates bundle safety, supports cancellation, and owns cleanup of temporary resources. Skillet
-  never executes acquired content.
-- Target paths come only from the manifest's explicit `target.path`, trusted agent-home environment variables, and
-  explicit constructor configuration. Manifest overrides must be absolute or start with `~/`; relative paths, empty
-  paths, and control characters are rejected during manifest validation.
-- Plan leaves agent state unchanged. Source acquisition may use the network before agent discovery; resource planning
-  makes no network requests. An Apply adapter may invoke a fixed
-  native management executable and argument vector without a shell; it must capture and redact diagnostics and report
-  native side effects.
-- MCP environment and header values are always redacted in human-readable diffs and captured command diagnostics.
-  Skillet does not resolve secret references or read credential files directly.
-- New files that can contain credentials use owner-only permissions; existing permissions are preserved where practical.
-- Applying an agent configuration can enable code to run in a later agent session. The plan must identify that effect
-  even though Skillet itself does not execute it.
-
-## Related design documents
-
-- [skillet.schema.yaml](../skillet.schema.yaml): version 1 manifest and canonical resource semantics
-- [interfaces.md](interfaces.md): Go interfaces and invariants
-- [agents.md](agents.md): native targets, conversion rules, and adapter execution strategies
-- [engine.md](engine.md): CLI, diff, locking, backup, and exit behavior
-- [testing.md](testing.md): verification strategy and acceptance coverage
+See [interfaces.md](interfaces.md), [reconciliation.md](reconciliation.md), [agents.md](agents.md), and
+[testing.md](testing.md) for the interface, execution, native-format, and verification contracts.

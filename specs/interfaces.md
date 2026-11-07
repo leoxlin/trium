@@ -1,246 +1,147 @@
-# Interfaces and module contracts
+# Module interfaces and contracts
 
-The design uses small Go interfaces at real seams: three resource classes vary independently of three agent
-implementations. Planning and applying behavior, rather than native file access, is the public resource interface.
-
-## Resource values
-
-`internal/resource` defines `Skill`, `Plugin`, `MCP`, and `Desired`.
+## Manifest
 
 ```go
-type Desired struct {
-    Skills  []Skill
-    Plugins []Plugin
-    MCPs    []MCP
+func Parse(data []byte) (Manifest, error)
+
+type Manifest struct {
+    Targets []Target
+    Skills  []Declaration
+    Plugins []Declaration
 }
 
+type Target struct { Agent, Path string }
+type Declaration struct {
+    Name   string
+    Source bundle.Reference
+}
+
+type ValidationError struct { Field, Message string }
+```
+
+`Parse` accepts exactly one version-1 YAML document. It rejects unknown fields, nulls, duplicate declarations, invalid
+names, unsupported agents, invalid target paths, and incompatible source fields. Target order is preserved. Skill and
+plugin names are independent.
+
+Parsing performs no filesystem access, environment lookup, or network activity. It calls the pure source-reference
+parser and adds declaration context to its errors. A valid reference to absent content can be parsed successfully.
+
+## Bundle
+
+```go
+func ParseReference(source, path, ref string) (Reference, error)
+func Acquire(ctx context.Context, baseDir string, source Reference) (Snapshot, error)
+func ReadDir(ctx context.Context, path string) (Snapshot, error)
+
+type Reference struct { /* private normalized fields */ }
+type Snapshot struct { /* private files, digest, source description */ }
 type Digest [32]byte
 
-type Item interface {
-    Key() string
-    Fingerprint() Digest
+type File struct {
+    Path       string
+    Data       []byte
+    Executable bool
 }
+
+func (s Snapshot) Files() []File
+func (s Snapshot) Digest() Digest
+func (s Snapshot) Source() string
+func (d Digest) String() string
 ```
 
-Each resource value implements `Item`. `Key` is the manifest name. `Fingerprint` is the canonical semantic digest
-defined in [skillet.schema.yaml](../skillet.schema.yaml), not a digest of native serialization.
+`Reference` values come from `ParseReference`; the zero value is invalid. Local references require a path and forbid a
+ref. Repository references normalize supported URLs and GitHub shorthand, default their ref to HEAD, and reject unsafe
+refs and escaping paths. Reference errors identify the offending source field.
 
-Desired file-backed values retain a bundle source so an adapter can stage content. A local source contains its resolved
-path. A Git source contains an immutable in-memory snapshot of regular file paths, bytes, and executable bits, plus
-its repository, requested ref, and resolved commit for diagnostics. Both forms use the same bundle fingerprint and
-staging behavior. Source locations and resolved commits never participate in fingerprints.
+`Acquire` requires an absolute base directory. Local paths stay within that directory. Repository paths stay within the
+selected Git tree. Acquisition owns its temporary repository, timeout, subprocesses, and archive decoding. It disables
+terminal credential prompts and Git hooks, rejects submodules, and never executes acquired content. Git archive
+attributes apply. No temporary resource is transferred to the caller.
 
-The skillet loader acquires every declared Git bundle once, before agent discovery. It delegates ref resolution and Git
-archive acquisition to `resource`, validates the selected bundle, and returns the snapshot as part of
-`resource.Desired`. Tests use local repositories and Git URL rewrites. Agent adapters receive acquired snapshots and
-never acquire source content themselves. Apply therefore uses the same remote
-snapshot in its fresh plan and writes, even if the upstream ref moves during that invocation.
+`ReadDir` reads an explicitly selected real directory, including installed bundles. It has no manifest-relative source
+semantics. Both source and installed snapshots reject symlinked ancestors, links, and special files. Missing directories
+return an error distinguishable with `errors.Is(err, os.ErrNotExist)`; existing empty directories yield valid snapshots.
 
-`MCP` uses typed fields matching the manifest schema rather than `map[string]any`. Agent-only fields are decoded into
-adapter-private types and do not leak into these values.
+Snapshots contain sorted, normalized file paths, bytes, and executable bits. Their digest excludes source location,
+revision labels, timestamps, and unrelated mode bits. `Files` returns a deep copy. Snapshots remain usable after their
+source disappears. `UnsafePathError` describes unsafe content or paths; transport and filesystem failures retain their
+underlying errors.
 
-## Resource interfaces
+## Reconciliation
 
 ```go
-type Resource[T Item] interface {
-    Plan(context.Context, []T) (ChangeSet[T], error)
-    Apply(context.Context, ChangeSet[T]) (ApplyReport, error)
-}
+type Homes struct { User, Codex, Claude, Kimi string }
+type Prepared struct { /* private snapshots and native adapters */ }
 
-type Skills interface {
-    Resource[Skill]
-}
-
-type Plugins interface {
-    Resource[Plugin]
-}
-
-type MCPs interface {
-    Resource[MCP]
-}
+func Prepare(ctx context.Context, spec manifest.Manifest,
+    baseDir string, homes Homes) (*Prepared, error)
+func (p *Prepared) Plan(ctx context.Context) ([]TargetPlan, error)
+func (p *Prepared) Apply(ctx context.Context) ([]TargetResult, error)
 ```
 
-The three named interfaces make constructor requirements explicit and prevent accidentally passing changes to the wrong
-adapter. They share behavior without sharing agent-specific implementation.
+All homes and the manifest base directory must be absolute. Reconciliation reads no process environment. A manifest
+`~/` target override is resolved against `Homes.User`; a target without an override uses its supplied agent home.
+Duplicate resolved targets are rejected.
 
-### `Plan`
+Preparation acquires every declaration once, sorts resources by name, validates skill frontmatter, and validates native
+plugin metadata for all selected agents. Native validation performs no target I/O. An invalid later target's plugin
+metadata therefore fails before any earlier target is applied. Acquired-content failures use `InputError{Field, Err}`;
+I/O failures remain operational errors with declaration context.
 
-`Plan` is a deep operation: it scans, decodes, canonicalizes, validates capabilities, and diffs desired resources.
+`Plan` returns targets in declaration order and changes in skills/plugins order, sorted by name. It never creates target
+files, directories, locks, or backups. It stops on an operational error and can return earlier target reports.
 
-- It makes no mutations and performs no network requests. An adapter may invoke a documented local, read-only agent CLI
-  query, but never a management or resource-execution command.
-- An empty desired slice returns an empty change set. Adapters may skip scanning in that case.
-- A missing target is valid empty state. Invalid native syntax, failed CLI queries, and unexpected I/O failures return
-  an error.
-- Expected incompatibilities are returned as `Conflict` changes, not operational errors.
-- It captures a digest for every target that `Apply` could modify, including registry files.
-- Results are sorted by resource key and are independent of map iteration and native array ordering.
-
-A shared generic `Diff[T Item]` helper implements add/update/unchanged comparison. Adapters remain responsible for
-native conflicts and capability checks. The helper never emits removals.
-
-### `Apply`
-
-`Apply` executes one previously planned resource class.
-
-- It rejects a change set containing conflicts before its first write or management command.
-- It rechecks all captured target digests before mutation and reports concurrent modification on mismatch.
-- It ignores unchanged entries.
-- It preserves unrelated native values and backs up every target the chosen strategy can modify.
-- The adapter privately chooses direct file writes, an agent management command, or a hybrid. Direct writes use staging
-  and atomic replacement where possible. CLI invocations use a fixed executable and argument vector without a shell,
-  capture and redact output, and are followed by a fresh scan that verifies the requested state.
-- It returns successfully applied keys, backup locations, and native side-effect warnings. It does not retry an
-  operational failure automatically.
-- It never directly invokes a hook, MCP server, plugin executable, or skill script. Any side effects of a native
-  management command must be documented and reported.
-
-Callers must not mutate a change set between `Plan` and `Apply`. The apply command creates a fresh plan under lock
-rather than accepting a serialized plan. Execution strategy is not part of this interface.
-
-## Changes and reports
+`Apply` takes the per-user lock and computes its own private plan against current native state. Public reports cannot be
+submitted for execution. All resource classes must pass conflict preflight before a target is written. Apply stops at
+the first conflict or operational error, retaining earlier successes and returning partial results.
 
 ```go
-type Action string
+type Kind string   // Skills, Plugins
+type Action string // Add, Update, Unchanged, Conflict
 
-const (
-    Add       Action = "add"
-    Update    Action = "update"
-    Unchanged Action = "unchanged"
-    Conflict  Action = "conflict"
-)
-
-type TargetDigest struct {
-    Path   string
-    Exists bool
-    Digest Digest
-}
-
-type Change[T Item] struct {
-    Action  Action
-    Desired T
-    Current *T
-    Reason  string
-}
-
-type ChangeSet[T Item] struct {
-    Changes []Change[T]
-    Targets []TargetDigest
-}
-
-func (c ChangeSet[T]) HasConflicts() bool
-func (c ChangeSet[T]) HasChanges() bool
-
-type AppliedItem struct {
-    Key    string
+type Change struct {
+    Kind   Kind
+    Name   string
     Action Action
+    Before bundle.Digest
+    After  bundle.Digest
+    Reason string
 }
 
-type ApplyReport struct {
-    Applied  []AppliedItem
+type TargetPlan struct {
+    Agent   string
+    Home    string
+    Changes []Change
+}
+func (p TargetPlan) HasConflicts() bool
+
+type TargetResult struct {
+    Plan     TargetPlan
+    Applied  []Change
     Backups  []string
     Warnings []string
 }
 ```
 
-`Current` is nil for additions. `Reason` is required for conflicts and may explain an update. Display rendering compares
-canonical before/after values; it does not infer operations from native bytes.
+Digests describe bundle content. A plugin can require an update with equal before/after digests because its enabled
+state or native cache differs. Reasons explain those changes. The before digest is meaningful only for existing content.
 
-The engine's aggregate plan has explicit typed fields, avoiding an untyped heterogeneous collection:
+A conflicted plan is returned without an operational error; callers inspect `HasConflicts`. On an apply error, results
+include earlier targets and the attempted target when planning began. Only verified resource classes appear in
+`Applied`. Errors identify the failed target and operation. Warnings identify incomplete restoration or stage cleanup.
 
-```go
-type Plan struct {
-    Skills  resource.ChangeSet[resource.Skill]
-    Plugins resource.ChangeSet[resource.Plugin]
-    MCPs    resource.ChangeSet[resource.MCP]
-}
-```
+Native adapters implement a private `validate(desired)`/`plan(context.Context, desired)` interface. Private plans
+contain
+observations and replacement batches. No native registry maps, target digests, execution instructions, or rollback state
+are exported. `DriftError` identifies a changed native target.
 
-The CLI converts these values into display-only rows. The engine does not format text.
-
-## Agent interface
-
-`internal/agents` exposes one agent and its resource set.
+## CLI
 
 ```go
-type Resources struct {
-    Skills  resource.Skills
-    Plugins resource.Plugins
-    MCPs    resource.MCPs
-}
-
-type Agent interface {
-    Name() string
-    Resources() Resources
-    Lock(context.Context) (unlock func() error, err error)
-}
+func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int
 ```
 
-All three fields are required for Codex, Claude, and Kimi. A nil field is a construction error, not an implicit
-capability skip. Future agents with genuinely unsupported resource classes should return conflict-producing adapters so
-requested resources are never silently ignored.
-
-`Lock` is per agent target and is used only for apply. It must be reentrant-unsafe, fail if another live process holds
-it, and remove the lock on unlock. Plan does not create or inspect the lock file.
-
-Agent constructors accept an explicit target struct containing every native path. CLI-backed adapters also accept an
-explicit executable path and private command-runner seam. The CLI selects a factory for each manifest target using its
-`agent`. That factory resolves an optional absolute or home-relative `target.path` override, then `CODEX_HOME`,
-`CLAUDE_CONFIG_DIR`, or `KIMI_CODE_HOME`, then the corresponding home-relative default, plus any native executable
-selected by the adapter. This keeps tests hermetic and environment lookup out of reconciliation. The engine receives
-neither paths nor command runners.
-
-## Engine interface
-
-```go
-type Engine struct {
-    // No native agent or CLI dependencies.
-}
-
-func (Engine) Plan(
-    ctx context.Context,
-    a agent.Agent,
-    desired resource.Desired,
-) (Plan, error)
-
-func (Engine) Apply(
-    ctx context.Context,
-    a agent.Agent,
-    desired resource.Desired,
-) (Plan, ApplyReport, error)
-```
-
-`Engine.Plan` calls each resource interface in fixed order and aggregates the complete plan. A hard error aborts;
-conflicts are accumulated so the CLI can show all actionable problems.
-
-`Engine.Apply`:
-
-1. Acquires and defers release of the agent lock.
-2. Recomputes the complete plan under that lock.
-3. Returns the plan without writes if any class contains a conflict.
-4. Applies non-empty classes in skills, plugins, MCPs order.
-5. Stops on the first operational error and returns the plan and partial report alongside the error.
-
-The aggregate report includes the plan that was actually applied. There is no interface for applying a stale or
-externally supplied plan.
-
-## Error taxonomy
-
-- **Invalid invocation, manifest, or acquired bundle:** a typed validation error with a field path; exit 2 before
-  scanning. This includes invalid source declarations, unsafe archive paths, and invalid skill content.
-- **Requested/native incompatibility:** a `Conflict` change with key and reason; complete diff, exit 2, no mutations.
-- **Git acquisition, native parse, CLI query, permission, or I/O failure:** a wrapped operational error with source,
-  target,
-  or command context; exit 1. Git command, timeout, cancellation, and malformed-archive failures happen
-  before agent discovery or native writes.
-- **Concurrent target modification:** a typed drift error naming the target; exit 1 without mutating that resource.
-- **Apply failure:** a wrapped error plus partial `ApplyReport`; exit 1 with explicit partial-result output.
-
-Errors wrap with `%w` so tests can use `errors.Is`/`errors.As`. User-facing rendering adds context once at the CLI seam;
-lower modules do not print.
-
-## Interface test surface
-
-Each agent adapter runs the same resource contract suite against temporary native targets. Tests cross `Plan` and
-`Apply`, not private codec helpers. Codec fixtures supplement those contract tests for native compatibility. The generic
-differ is tested independently for identity, ordering, fingerprints, and no-removal behavior.
+The CLI owns arguments, process environment, home defaults, manifest file reading, formatting, and exit codes. It calls
+`manifest.Parse`, `reconcile.Prepare`, and either `Plan` or `Apply`. It renders partial results before reporting an
+operational error. Resource content and native formats are handled by the other modules.

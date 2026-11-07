@@ -91,6 +91,7 @@ func TestCodexUsesSharedSkillRoot(t *testing.T) {
 func TestMultipleTargetsPlanApplyPlan(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("CODEX_HOME", "")
 	t.Setenv("KIMI_CODE_HOME", filepath.Join(home, "relocated-kimi"))
 	dir := t.TempDir()
 	skillDir := filepath.Join(dir, "skill")
@@ -221,6 +222,7 @@ func TestClaudePlanApplyPlan(t *testing.T) {
 
 func TestPluginOnlyCLI(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("HOME", filepath.Join(dir, "user"))
 	home := filepath.Join(dir, "agent")
 	plugin := filepath.Join(dir, "plugin")
 	if err := os.Mkdir(plugin, 0o755); err != nil {

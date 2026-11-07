@@ -2,18 +2,15 @@ package manifest
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/leoxlin/skillets/internal/bundle"
 	"gopkg.in/yaml.v3"
-
-	"github.com/leoxlin/skillets/internal/resource"
 )
 
 var namePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
@@ -33,9 +30,14 @@ type Target struct {
 }
 
 type Manifest struct {
-	Path    string
 	Targets []Target
-	Desired resource.Desired
+	Skills  []Declaration
+	Plugins []Declaration
+}
+
+type Declaration struct {
+	Name   string
+	Source bundle.Reference
 }
 
 type document struct {
@@ -58,15 +60,8 @@ type bundleDecl struct {
 	Ref    string `yaml:"ref"`
 }
 
-func Load(ctx context.Context, path string) (Manifest, error) {
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return Manifest{}, err
-	}
-	data, err := os.ReadFile(absolute)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("read manifest %s: %w", absolute, err)
-	}
+// Parse validates declarations without reading their sources.
+func Parse(data []byte) (Manifest, error) {
 	if err := rejectNulls(data); err != nil {
 		return Manifest{}, err
 	}
@@ -127,49 +122,36 @@ func Load(ctx context.Context, path string) (Manifest, error) {
 		return Manifest{}, invalid("mcps", "MCPs are not supported by this tracer bullet")
 	}
 
-	manifest := Manifest{
-		Path:    absolute,
-		Targets: selected,
+	result := Manifest{Targets: selected}
+	for _, group := range []struct {
+		kind         string
+		declarations []bundleDecl
+		output       *[]Declaration
+	}{
+		{"skills", doc.Skills, &result.Skills}, {"plugins", doc.Plugins, &result.Plugins},
+	} {
+		seen := map[string]bool{}
+		for i, declaration := range group.declarations {
+			field := fmt.Sprintf("%s[%d]", group.kind, i)
+			if !namePattern.MatchString(declaration.Name) {
+				return Manifest{}, invalid(field+".name", "must match "+namePattern.String())
+			}
+			if seen[declaration.Name] {
+				return Manifest{}, invalid(field+".name", "duplicate resource name")
+			}
+			seen[declaration.Name] = true
+			source, err := bundle.ParseReference(declaration.Source, declaration.Path, declaration.Ref)
+			if err != nil {
+				var reference *bundle.ReferenceError
+				if errors.As(err, &reference) {
+					return Manifest{}, invalid(field+"."+reference.Field, reference.Message)
+				}
+				return Manifest{}, err
+			}
+			*group.output = append(*group.output, Declaration{Name: declaration.Name, Source: source})
+		}
 	}
-	seen := make(map[string]struct{}, len(doc.Skills))
-	for i, declaration := range doc.Skills {
-		if err := ctx.Err(); err != nil {
-			return Manifest{}, err
-		}
-		field := fmt.Sprintf("skills[%d]", i)
-		if !namePattern.MatchString(declaration.Name) {
-			return Manifest{}, invalid(field+".name", "must match "+namePattern.String())
-		}
-		if _, exists := seen[declaration.Name]; exists {
-			return Manifest{}, invalid(field+".name", "duplicate skill name")
-		}
-		seen[declaration.Name] = struct{}{}
-		skill, err := loadSkill(ctx, filepath.Dir(absolute), declaration, field)
-		if err != nil {
-			return Manifest{}, err
-		}
-		manifest.Desired.Skills = append(manifest.Desired.Skills, skill)
-	}
-	seenPlugins := make(map[string]bool)
-	for i, declaration := range doc.Plugins {
-		field := fmt.Sprintf("plugins[%d]", i)
-		if !namePattern.MatchString(declaration.Name) {
-			return Manifest{}, invalid(field+".name", "must match "+namePattern.String())
-		}
-		if seenPlugins[declaration.Name] {
-			return Manifest{}, invalid(field+".name", "duplicate plugin name")
-		}
-		seenPlugins[declaration.Name] = true
-		if err := ctx.Err(); err != nil {
-			return Manifest{}, err
-		}
-		plugin, err := loadPlugin(ctx, filepath.Dir(absolute), declaration, selected, field)
-		if err != nil {
-			return Manifest{}, err
-		}
-		manifest.Desired.Plugins = append(manifest.Desired.Plugins, plugin)
-	}
-	return manifest, nil
+	return result, nil
 }
 
 func validateTargetPath(path string) error {

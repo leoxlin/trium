@@ -83,8 +83,8 @@ skills; symlinks and submodules are rejected.
 
 Both preview and apply fetch the selected revision into a temporary bare repository, then read its Git archive into
 memory. Archive attributes such as `export-ignore` apply. Acquisition has a two-minute timeout and the temporary
-repository is removed before loading returns. No checkout, hooks, submodule updates, or skill scripts run. Each loaded
-snapshot is reused across all targets during that invocation.
+repository is removed before source preparation returns. No checkout, hooks, submodule updates, or skill scripts run.
+Each loaded snapshot is reused across all targets during that invocation.
 
 Plugins use the same source, path, and ref fields as skills:
 
@@ -134,9 +134,10 @@ skillet apply
 skillet --file /path/to/skillet.yaml
 ```
 
-Planning leaves agent files unchanged. Applying takes a lock, rechecks the plan, retains backups under the selected
-agent's `.skillet/backups` directory, and replaces only declared skill and plugin bundles. Undeclared resources are
-left alone.
+Planning leaves agent files unchanged. Applying takes a per-user lock at `~/.skillet/apply.lock`, rechecks the plan,
+retains backups under the selected agent's `.skillet/backups` directory, and replaces only declared skill and plugin
+bundles. The lock covers all selected agents, including shared skill destinations; its file remains after unlocking.
+Undeclared resources are left alone.
 Each resource class restores its own affected bundles and registry files if writing or verification fails. Earlier
 successful resource classes remain applied.
 
