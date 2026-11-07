@@ -37,13 +37,13 @@ type Target struct {
 
 type Manifest struct {
 	Path    string
-	Target  Target
+	Targets []Target
 	Desired resource.Desired
 }
 
 type document struct {
 	Version int         `yaml:"version"`
-	Target  targetDecl  `yaml:"target"`
+	Target  yaml.Node   `yaml:"target"`
 	Skills  []skillDecl `yaml:"skills"`
 	Plugins []yaml.Node `yaml:"plugins"`
 	MCPs    []yaml.Node `yaml:"mcps"`
@@ -87,11 +87,45 @@ func Load(ctx context.Context, path string) (Manifest, error) {
 	if doc.Version != 1 {
 		return Manifest{}, invalid("version", "must be 1")
 	}
-	if doc.Target.Agent != "codex" && doc.Target.Agent != "kimi" {
-		return Manifest{}, invalid("target.agent", "must be codex or kimi")
+	targets := []*yaml.Node{&doc.Target}
+	if doc.Target.Kind == yaml.SequenceNode {
+		targets = doc.Target.Content
 	}
-	if err := validateTargetPath(doc.Target.Path); err != nil {
-		return Manifest{}, err
+	if len(targets) == 0 {
+		return Manifest{}, invalid("target", "must contain at least one target")
+	}
+	var selected []Target
+	seenTargets := make(map[Target]bool)
+	for i, node := range targets {
+		field := "target"
+		if doc.Target.Kind == yaml.SequenceNode {
+			field = fmt.Sprintf("target[%d]", i)
+		}
+		if node.Kind != yaml.MappingNode {
+			return Manifest{}, invalid(field, "must be an agent mapping")
+		}
+		data, err := yaml.Marshal(node)
+		if err != nil {
+			return Manifest{}, err
+		}
+		var declaration targetDecl
+		decoder := yaml.NewDecoder(bytes.NewReader(data))
+		decoder.KnownFields(true)
+		if err := decoder.Decode(&declaration); err != nil {
+			return Manifest{}, invalid(field, err.Error())
+		}
+		if declaration.Agent != "codex" && declaration.Agent != "kimi" {
+			return Manifest{}, invalid(field+".agent", "must be codex or kimi")
+		}
+		if err := validateTargetPath(declaration.Path); err != nil {
+			return Manifest{}, invalid(field+".path", err.Error())
+		}
+		target := Target{Agent: declaration.Agent, Path: declaration.Path}
+		if seenTargets[target] {
+			return Manifest{}, invalid(field, "duplicate target")
+		}
+		seenTargets[target] = true
+		selected = append(selected, target)
 	}
 	if len(doc.Plugins) != 0 {
 		return Manifest{}, invalid("plugins", "plugins are not supported by this tracer bullet")
@@ -101,8 +135,8 @@ func Load(ctx context.Context, path string) (Manifest, error) {
 	}
 
 	manifest := Manifest{
-		Path:   absolute,
-		Target: Target{Agent: doc.Target.Agent, Path: doc.Target.Path},
+		Path:    absolute,
+		Targets: selected,
 	}
 	seen := make(map[string]struct{}, len(doc.Skills))
 	for i, declaration := range doc.Skills {
@@ -218,7 +252,7 @@ func validateTargetPath(path string) error {
 		return nil
 	}
 	if hasControl(path) || (!filepath.IsAbs(path) && !strings.HasPrefix(path, "~/")) {
-		return invalid("target.path", "must be absolute or start with ~/")
+		return errors.New("must be absolute or start with ~/")
 	}
 	return nil
 }

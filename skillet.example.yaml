@@ -2,9 +2,10 @@
 version: 1
 
 target:
-  agent: codex
-  # Optional: override CODEX_HOME or the default ~/.codex target.
-  # path: ~/.codex-team
+  - agent: codex
+    # Optional: override CODEX_HOME or the default ~/.codex target.
+    # path: ~/.codex-team
+  - agent: kimi
 
 skills:
   - name: code-review

@@ -10,7 +10,8 @@ native targets, not mocks of the interface being tested.
 Use table-driven tests for:
 
 - supported version and every resource class;
-- a required single target, all supported agents, absolute and `~/` overrides, and missing or invalid target paths;
+- a required target mapping or non-empty list, all supported agents, absolute and `~/` overrides, invalid paths,
+  duplicate targets, and strict field validation for every list entry;
 - unknown fields, duplicate YAML keys, duplicate names, invalid names, and nulls;
 - stdio/HTTP field exclusivity and transport-specific fields;
 - missing, absolute, escaping, and symlinked sources;

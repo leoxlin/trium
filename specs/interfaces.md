@@ -184,8 +184,8 @@ requested resources are never silently ignored.
 it, and remove the lock on unlock. Plan does not create or inspect the lock file.
 
 Agent constructors accept an explicit target struct containing every native path. CLI-backed adapters also accept an
-explicit executable path and private command-runner seam. The CLI selects one factory using the manifest's
-`target.agent`. That factory resolves an optional absolute or home-relative `target.path` override, then `CODEX_HOME`,
+explicit executable path and private command-runner seam. The CLI selects a factory for each manifest target using its
+`agent`. That factory resolves an optional absolute or home-relative `target.path` override, then `CODEX_HOME`,
 `CLAUDE_CONFIG_DIR`, or `KIMI_CODE_HOME`, then the corresponding home-relative default, plus any native executable
 selected by the adapter. This keeps tests hermetic and environment lookup out of reconciliation. The engine receives
 neither paths nor command runners.

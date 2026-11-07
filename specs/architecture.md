@@ -4,8 +4,8 @@ Status: proposed
 
 ## Purpose
 
-Skillet is a Go CLI that reconciles selected resources from one versioned manifest into one per-user Codex, Claude Code,
-or Kimi Code environment. Its primary seam is Plan/Apply: planning produces a semantic diff without changing the
+Skillet is a Go CLI that reconciles selected resources from one versioned manifest into one or more per-user Codex, Claude Code,
+or Kimi Code environments. Its primary seam is Plan/Apply: planning produces a semantic diff without changing the
 machine; applying recomputes that diff under a lock and installs the changes.
 
 This document describes the implementation design. Command examples and field definitions are interface contracts, not
@@ -15,8 +15,8 @@ end-user documentation.
 
 - The initial scope is the current user's agent environments, not project, enterprise-managed, cloud, or remote
   configuration.
-- Every manifest targets exactly one agent. An optional target path overrides the selected agent's home; otherwise its
-  environment variable and default home are used.
+- Each manifest accepts one target mapping or a non-empty list of target mappings. Each optional target path
+  overrides that agent's home; otherwise its environment variable and default home are used.
 - Skills and plugins come from local files relative to the skillet file or from a directory in a public GitHub
   repository. Remote configuration targets are outside version 1.
 - MCP declarations support stdio and streamable HTTP. Hook management is outside version 1; existing native hooks remain
@@ -92,10 +92,10 @@ validation in one module instead of duplicating them across three agents and two
 
 1. The CLI loads `~/.config/skillet.yaml` by default, or exactly the path supplied by the global `--file` option. It
    does not search for or merge another manifest.
-2. The manifest module decodes and statically validates the complete document, including its single `target`. It resolves
+2. The manifest module decodes and statically validates the complete document, including all entries in `target`. It resolves
    local sources and acquires each declared GitHub source once into memory, then validates bundle content and computes
    semantic fingerprints.
-3. The CLI selects the agent factory named by `target.agent`. The factory resolves the optional `target.path` override,
+3. For each target in declaration order, the CLI selects the agent factory named by `target.agent`. The factory resolves the optional `target.path` override,
    then the agent-home environment variable and default, and discovers concrete per-user targets. Environment discovery
    occurs only in this factory; adapters receive explicit paths.
 4. The engine calls `Plan` for every resource class in fixed order: skills, plugins, MCPs.
@@ -106,6 +106,9 @@ validation in one module instead of duplicating them across three agents and two
 7. The apply command acquires the agent lock before repeating steps 4–5 with the already acquired sources. Any conflict
    aborts before writes. Otherwise the engine applies each non-empty change set in the same fixed order and reports the
    result.
+
+Targets are processed in declaration order. A failure stops later targets; earlier successful targets remain applied.
+Locks, backups, and conflict checks are per target. There is no transaction across targets.
 
 There is no saved plan file or remote-source cache in version 1. Apply always plans against current native state, so a
 stale diff cannot be submitted for execution, and it stages the same GitHub snapshots used to render that diff.

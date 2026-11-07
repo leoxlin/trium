@@ -18,7 +18,7 @@ func TestLoadLocalSkills(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.Target.Agent != "kimi" || len(loaded.Desired.Skills) != 1 {
+	if len(loaded.Targets) != 1 || loaded.Targets[0].Agent != "kimi" || len(loaded.Desired.Skills) != 1 {
 		t.Fatalf("manifest = %#v", loaded)
 	}
 	if loaded.Desired.Skills[0].Source != filepath.Join(dir, "skills", "review") {
@@ -28,6 +28,16 @@ func TestLoadLocalSkills(t *testing.T) {
 
 func TestLoadRejectsInvalidInput(t *testing.T) {
 	tests := map[string]string{
+		"empty targets":         "version: 1\ntarget: []\n",
+		"missing target":        "version: 1\n",
+		"invalid list agent":    "version: 1\ntarget:\n  - agent: codex\n  - agent: nope\n",
+		"unknown target field":  "version: 1\ntarget:\n  - agent: kimi\n    typo: true\n",
+		"duplicate targets":     "version: 1\ntarget:\n  - agent: kimi\n  - agent: kimi\n",
+		"scalar target":         "version: 1\ntarget: kimi\n",
+		"null list target":      "version: 1\ntarget: [null]\n",
+		"relative list path":    "version: 1\ntarget:\n  - agent: kimi\n    path: relative\n",
+		"duplicate target keys": "version: 1\ntarget:\n  - agent: kimi\n    agent: codex\n",
+
 		"claude":          "version: 1\ntarget:\n  agent: claude\n",
 		"plugins":         "version: 1\ntarget:\n  agent: kimi\nplugins:\n  - name: nope\n    source: nope\n",
 		"remote":          "version: 1\ntarget:\n  agent: codex\nskills:\n  - name: review\n    github: owner/repo\n",
@@ -77,4 +87,16 @@ func writeManifest(t *testing.T, dir, contents string) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func TestLoadMultipleTargets(t *testing.T) {
+	path := writeManifest(t, t.TempDir(), "version: 1\ntarget:\n  - agent: codex\n  - agent: kimi\n    path: ~/custom-kimi\n")
+	loaded, err := manifest.Load(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Targets) != 2 || loaded.Targets[0].Agent != "codex" ||
+		loaded.Targets[1] != (manifest.Target{Agent: "kimi", Path: "~/custom-kimi"}) {
+		t.Fatalf("targets = %#v", loaded.Targets)
+	}
 }

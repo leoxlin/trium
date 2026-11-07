@@ -61,12 +61,20 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		return 1
 	}
-	selected, err := discover(loaded)
-	if err != nil {
-		fmt.Fprintf(stderr, "discover agent: %v\n", err)
-		return 1
+	for _, target := range loaded.Targets {
+		selected, err := discover(target)
+		if err != nil {
+			fmt.Fprintf(stderr, "discover %s: %v\n", target.Agent, err)
+			return 1
+		}
+		if code := runTarget(ctx, selected, loaded, apply, stdout, stderr); code != 0 {
+			return code
+		}
 	}
+	return 0
+}
 
+func runTarget(ctx context.Context, selected agent.Agent, loaded manifest.Manifest, apply bool, stdout, stderr io.Writer) int {
 	runner := engine.Engine{}
 	if apply {
 		plan, report, err := runner.Apply(ctx, selected, loaded.Desired)
@@ -101,17 +109,17 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func discover(manifest manifest.Manifest) (agent.Agent, error) {
+func discover(target manifest.Target) (agent.Agent, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
-	targetHome := manifest.Target.Path
+	targetHome := target.Path
 	if strings.HasPrefix(targetHome, "~/") {
 		targetHome = filepath.Join(home, strings.TrimPrefix(targetHome, "~/"))
 	}
 	if targetHome == "" {
-		switch manifest.Target.Agent {
+		switch target.Agent {
 		case "codex":
 			targetHome = os.Getenv("CODEX_HOME")
 			if targetHome == "" {
@@ -128,7 +136,7 @@ func discover(manifest manifest.Manifest) (agent.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch manifest.Target.Agent {
+	switch target.Agent {
 	case "codex":
 		return codex.New(codex.Target{
 			Home:       targetHome,
@@ -137,6 +145,6 @@ func discover(manifest manifest.Manifest) (agent.Agent, error) {
 	case "kimi":
 		return kimi.New(kimi.Target{Home: targetHome}), nil
 	default:
-		return nil, fmt.Errorf("unsupported agent %q", manifest.Target.Agent)
+		return nil, fmt.Errorf("unsupported agent %q", target.Agent)
 	}
 }

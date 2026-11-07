@@ -28,6 +28,17 @@ skills:
     source: skills/code-review
 ```
 
+To manage both agents with the same skills, use a non-empty target list:
+
+```yaml
+target:
+  - agent: codex
+  - agent: kimi
+```
+
+Each entry accepts an optional `path`. The single-target mapping remains supported. Targets run in list order;
+a failure stops the remaining targets. Earlier successful targets remain applied, with their own backups.
+
 The source is relative to the manifest and must contain `SKILL.md` with matching `name` and a non-empty `description`
 in its YAML frontmatter. Codex installs into `~/.agents/skills`; Kimi installs into `$KIMI_CODE_HOME/skills`.
 

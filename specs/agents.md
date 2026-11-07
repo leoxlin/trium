@@ -23,7 +23,7 @@ conflict. It must not silently weaken those guarantees.
 
 ## Common discovery and scan scope
 
-The manifest's `target.agent` selects one agent factory. Its optional `target.path` overrides that agent's home
+Each manifest target's `agent` selects an agent factory. Its optional `target.path` overrides that agent's home
 directory; otherwise the factory resolves the process environment and default below, then passes an immutable target
 struct to the constructor. A manifest path must be absolute or start with `~/`. Tests construct targets directly.
 
