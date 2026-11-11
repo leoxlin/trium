@@ -1,6 +1,6 @@
 # trium architecture
 
-Status: implemented for skills, plugins, and MCP server configurations.
+Status: implemented for skills, plugins, MCP server configurations, and agent instructions.
 
 ## Modules
 
@@ -48,8 +48,10 @@ method. Reusing it retains the same source snapshots; preparing again refreshes 
 - A declared skill or plugin owns its complete installed bundle. Replacement removes stale files inside that bundle.
 - Native plugin registration and enabled state are reconciled with the bundle.
 - Undeclared resources and unrelated native configuration are preserved.
-- Skills, plugins, and MCPs have separate namespaces, even when they share a name.
+- Skills, plugins, MCPs, and instructions have separate namespaces.
 - Declared MCPs own connection fields; unrelated native server policy and undeclared entries remain.
+- Declared instructions own the agent-specific instructions file; an empty or omitted value leaves existing
+  instructions untouched.
 - Native paths, ownership rules, and codecs belong to the corresponding private adapter.
 - Expected ownership conflicts block all resource writes for that target. Invalid native documents are errors.
 

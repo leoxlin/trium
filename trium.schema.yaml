@@ -28,6 +28,9 @@ properties:
     items:
       $ref: '#/$defs/bundle'
     default: []
+  instructions:
+    type: string
+    description: Agent instructions written to each target's agent-specific instructions file.
   mcps:
     type: array
     items:

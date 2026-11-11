@@ -31,10 +31,11 @@ type Target struct {
 }
 
 type Manifest struct {
-	Targets []Target
-	Skills  []Declaration
-	Plugins []Declaration
-	MCPs    []MCP
+	Targets      []Target
+	Instructions string
+	Skills       []Declaration
+	Plugins      []Declaration
+	MCPs         []MCP
 }
 
 // MCP declares either a stdio command or a Streamable HTTP endpoint.
@@ -114,11 +115,12 @@ type Declaration struct {
 }
 
 type document struct {
-	Version int          `yaml:"version"`
-	Target  yaml.Node    `yaml:"target"`
-	Skills  []bundleDecl `yaml:"skills"`
-	Plugins []bundleDecl `yaml:"plugins"`
-	MCPs    []yaml.Node  `yaml:"mcps"`
+	Version      int          `yaml:"version"`
+	Target       yaml.Node    `yaml:"target"`
+	Instructions string       `yaml:"instructions"`
+	Skills       []bundleDecl `yaml:"skills"`
+	Plugins      []bundleDecl `yaml:"plugins"`
+	MCPs         []yaml.Node  `yaml:"mcps"`
 }
 
 type targetDecl struct {
@@ -192,7 +194,7 @@ func Parse(data []byte) (Manifest, error) {
 		selected = append(selected, target)
 	}
 
-	result := Manifest{Targets: selected}
+	result := Manifest{Targets: selected, Instructions: doc.Instructions}
 	for i, node := range doc.MCPs {
 		data, err := yaml.Marshal(&node)
 		if err != nil {

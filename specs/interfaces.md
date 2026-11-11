@@ -6,10 +6,11 @@
 func Parse(data []byte) (Manifest, error)
 
 type Manifest struct {
-    Targets []Target
-    Skills  []Declaration
-    Plugins []Declaration
-    MCPs    []MCP
+    Targets      []Target
+    Instructions string
+    Skills       []Declaration
+    Plugins      []Declaration
+    MCPs         []MCP
 }
 
 type Target struct { Agent, Path string }
@@ -24,7 +25,8 @@ type ValidationError struct { Field, Message string }
 `Parse` accepts exactly one version-1 YAML document. It rejects unknown fields, nulls, duplicate declarations, invalid
 names, unsupported agents, invalid target paths, and incompatible source fields. Target order is preserved. Skill,
 plugin, and MCP names are independent. MCP declarations require exactly one stdio command or HTTP URL, with
-transport-specific fields.
+transport-specific fields. A non-empty `instructions` string is written to each target's agent-specific instructions
+file; an empty or omitted value leaves existing instructions untouched.
 
 Parsing performs no filesystem access, environment lookup, or network activity. It calls the pure source-reference
 parser and adds declaration context to its errors. A valid reference to absent content can be parsed successfully.
@@ -105,7 +107,7 @@ submitted for execution. All resource classes must pass conflict preflight befor
 the first conflict or operational error, retaining earlier successes and returning partial results.
 
 ```go
-type Kind string   // Skills, Plugins, MCPs
+type Kind string   // Skills, Plugins, MCPs, Instructions
 type Action string // Add, Update, Unchanged, Conflict
 
 type Change struct {

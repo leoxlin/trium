@@ -11,7 +11,7 @@ import (
 type kimiNative struct{ home, skillsRoot string }
 
 func (a *kimiNative) plan(ctx context.Context, wanted desired) (targetPlan, error) {
-	return planTarget(ctx, wanted, a.skillsRoot, nil, nil, a.pluginRegistration)
+	return planTarget(ctx, wanted, a.skillsRoot, nil, nil, a.pluginRegistration, filepath.Join(a.home, "AGENTS.md"))
 }
 func (a *kimiNative) validate(wanted desired) error { return validatePlugins(wanted.plugins, "kimi") }
 

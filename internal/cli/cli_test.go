@@ -319,6 +319,40 @@ func TestMCPCLI(t *testing.T) {
 	}
 }
 
+func TestInstructionsCLI(t *testing.T) {
+	for _, kind := range []string{"codex", "claude", "kimi"} {
+		t.Run(kind, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+			t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
+			t.Setenv("KIMI_CODE_HOME", filepath.Join(home, ".kimi-code"))
+			dir := t.TempDir()
+			manifest := "version: 1\ntarget: {agent: " + kind + "}\ninstructions: |\n  Be concise.\n"
+			path := filepath.Join(dir, "trium.yaml")
+			if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var stdout, stderr bytes.Buffer
+			if code := cli.Run(context.Background(), []string{"apply", path}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "instructions/instructions") {
+				t.Fatalf("apply: %d %s %s", code, stdout.String(), stderr.String())
+			}
+			name := "AGENTS.md"
+			if kind == "claude" {
+				name = "CLAUDE.md"
+			}
+			agentHome := filepath.Join(home, "."+kind)
+			if kind == "kimi" {
+				agentHome = filepath.Join(home, ".kimi-code")
+			}
+			got, err := os.ReadFile(filepath.Join(agentHome, name))
+			if err != nil || string(got) != "Be concise.\n" {
+				t.Fatalf("instructions = %q, %v", got, err)
+			}
+		})
+	}
+}
+
 func TestCommandArguments(t *testing.T) {
 	for _, test := range []struct {
 		name string

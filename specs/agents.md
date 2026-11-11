@@ -9,6 +9,12 @@ transactions, and locking remain in the same module.
 The CLI reads environment variables and supplies absolute `Homes` values. A manifest target override takes precedence;
 `~/` expands against the supplied user home. Native adapters never read the process environment.
 
+## Agent instructions
+
+A non-empty manifest `instructions` string is written to the selected agent home's instructions file:
+`AGENTS.md` for Codex and Kimi, and `CLAUDE.md` for Claude. Existing instructions are left untouched when the field is
+empty or omitted.
+
 | Agent | Environment variable | Default agent home | Skill root |
 | --- | --- | --- | --- |
 | Codex | `CODEX_HOME` | `~/.codex` | `~/.agents/skills` |

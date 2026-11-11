@@ -447,6 +447,39 @@ func TestLaterTargetConflictKeepsEarlierSuccess(t *testing.T) {
 	}
 }
 
+func TestInstructionsLifecycle(t *testing.T) {
+	for _, kind := range []string{"codex", "claude", "kimi"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newFixture(t, kind)
+			f.prepare("content", "")
+			spec, err := manifest.Parse([]byte("version: 1\ntarget: {agent: " + kind + "}\ninstructions: |\n  Be concise.\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			prepared, err := reconcile.Prepare(context.Background(), spec, f.source, f.homes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			action(t, plan(t, prepared), reconcile.Instructions, reconcile.Add)
+			apply(t, prepared)
+			name := "AGENTS.md"
+			if kind == "claude" {
+				name = "CLAUDE.md"
+			}
+			if got := string(read(t, filepath.Join(f.home, name))); got != "Be concise.\n" {
+				t.Fatalf("instructions = %q", got)
+			}
+			action(t, plan(t, prepared), reconcile.Instructions, reconcile.Unchanged)
+			write(t, filepath.Join(f.home, name), []byte("Be thorough.\n"))
+			action(t, plan(t, prepared), reconcile.Instructions, reconcile.Update)
+			apply(t, prepared)
+			if got := string(read(t, filepath.Join(f.home, name))); got != "Be concise.\n" {
+				t.Fatalf("instructions after update = %q", got)
+			}
+		})
+	}
+}
+
 func TestNativeJSONRejectsAmbiguousDocuments(t *testing.T) {
 	for _, contents := range []string{`{"version":1,"version":1,"plugins":[]}`, `{"version":1,"plugins":[],"unknown":{"same":1,"same":2}}`, `{} {}`, `null`, `[]`, `{`} {
 		t.Run(contents, func(t *testing.T) {

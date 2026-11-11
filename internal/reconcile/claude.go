@@ -38,7 +38,7 @@ func protectedPath(path string) (string, error) {
 }
 
 func (a *claudeNative) plan(ctx context.Context, wanted desired) (targetPlan, error) {
-	return planTarget(ctx, wanted, a.skillsRoot, nil, protectedPath, a.pluginRegistration)
+	return planTarget(ctx, wanted, a.skillsRoot, nil, protectedPath, a.pluginRegistration, filepath.Join(a.home, "CLAUDE.md"))
 }
 func (a *claudeNative) validate(wanted desired) error {
 	return validatePlugins(wanted.plugins, "claude")

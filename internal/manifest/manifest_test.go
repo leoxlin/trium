@@ -7,11 +7,11 @@ import (
 )
 
 func TestParseOnlyValidatesDeclarations(t *testing.T) {
-	spec, err := manifest.Parse([]byte("version: 1\ntarget: [{agent: codex}, {agent: kimi, path: ~/other}]\nskills:\n  - name: review\n    path: missing-directory\nplugins:\n  - name: review\n    source: example/nonexistent-repository\n"))
+	spec, err := manifest.Parse([]byte("version: 1\ntarget: [{agent: codex}, {agent: kimi, path: ~/other}]\ninstructions: |\n  Be concise.\nskills:\n  - name: review\n    path: missing-directory\nplugins:\n  - name: review\n    source: example/nonexistent-repository\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(spec.Targets) != 2 || spec.Targets[1].Path != "~/other" || len(spec.Skills) != 1 || len(spec.Plugins) != 1 {
+	if len(spec.Targets) != 2 || spec.Targets[1].Path != "~/other" || spec.Instructions != "Be concise.\n" || len(spec.Skills) != 1 || len(spec.Plugins) != 1 {
 		t.Fatalf("declarations = %#v", spec)
 	}
 }

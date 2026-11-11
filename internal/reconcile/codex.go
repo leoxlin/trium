@@ -45,7 +45,7 @@ func (a *codexNative) plan(ctx context.Context, wanted desired) (targetPlan, err
 			return "skill is disabled in Codex config.toml", nil
 		}
 		return "", nil
-	}, a.pluginRegistration)
+	}, a.pluginRegistration, filepath.Join(a.home, "AGENTS.md"))
 }
 func (a *codexNative) validate(wanted desired) error { return validatePlugins(wanted.plugins, "codex") }
 

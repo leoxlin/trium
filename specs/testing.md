@@ -25,7 +25,7 @@ declaration can reference nonexistent local or remote content, demonstrating tha
 
 Public preparation and Plan/Apply tests exercise all three native adapters:
 
-- Add, verify, update, enable-only update, no-op apply, and no pruning.
+- Add, verify, update, enable-only update, no-op apply, no pruning, and agent instructions.
 - Separate skill/plugin namespaces and preservation of unrelated bundles and native settings.
 - Codex disabled-skill policy, versioned cache repair, and retention of older cache versions.
 - Claude reserved locations and symlinked catalogs.

@@ -57,7 +57,7 @@ func Prepare(ctx context.Context, spec manifest.Manifest, baseDir string, homes 
 	if homes.ClaudeConfig != "" && !filepath.IsAbs(homes.ClaudeConfig) {
 		return nil, errors.New("Claude config path must be absolute")
 	}
-	p := &Prepared{mcps: prepareMCPs(spec.MCPs, baseDir), lockPath: filepath.Join(homes.User, ".trium", "apply.lock")}
+	p := &Prepared{wanted: desired{instructions: spec.Instructions}, mcps: prepareMCPs(spec.MCPs, baseDir), lockPath: filepath.Join(homes.User, ".trium", "apply.lock")}
 	seenTargets := map[string]bool{}
 	for i, target := range spec.Targets {
 		home := target.Path
@@ -229,7 +229,15 @@ func (p *Prepared) Apply(ctx context.Context) (results []TargetResult, err error
 	return results, nil
 }
 
-func planTarget(ctx context.Context, wanted desired, root string, reads []observation, check func(string) (string, error), register func([]namedBundle) (pluginRegistration, error)) (targetPlan, error) {
+func planTarget(ctx context.Context, wanted desired, root string, reads []observation, check func(string) (string, error), register func([]namedBundle) (pluginRegistration, error), instructionsPath string) (targetPlan, error) {
+	var batches []writeBatch
+	if wanted.instructions != "" {
+		instructions, err := planInstructions(wanted.instructions, instructionsPath)
+		if err != nil {
+			return targetPlan{}, err
+		}
+		batches = append(batches, instructions)
+	}
 	skills, err := planSkills(ctx, wanted.skills, root, reads, check)
 	if err != nil {
 		return targetPlan{}, err
@@ -238,7 +246,7 @@ func planTarget(ctx context.Context, wanted desired, root string, reads []observ
 	if err != nil {
 		return targetPlan{}, err
 	}
-	return targetPlan{batches: []writeBatch{skills, plugins}}, nil
+	return targetPlan{batches: append(batches, skills, plugins)}, nil
 }
 
 func (p *Prepared) planTarget(ctx context.Context, target selectedTarget) (targetPlan, error) {

@@ -1,6 +1,6 @@
 # trium
 
-Manage skills, plugins, and MCP servers across your coding agents from one YAML manifest.
+Manage skills, plugins, MCP servers, and agent instructions across your coding agents from one YAML manifest.
 Keep your agents configured consistently, preview changes before applying them, and leave undeclared resources alone.
 trium backs up files before replacing them.
 
@@ -28,6 +28,7 @@ skills:
 
 Point `path` at an existing skill directory, relative to the manifest. It must contain a `SKILL.md` with
 `name: code-review` and a non-empty `description` in its YAML frontmatter. Keep only the agents you use in `target`.
+Use the optional `instructions` field to write shared agent instructions to each target's instructions file.
 
 Preview, then apply:
 

@@ -7,6 +7,11 @@ target:
     # path: ~/.codex-team
   - agent: kimi
 
+# Optional: agent instructions written to ~/.codex/AGENTS.md, ~/.claude/CLAUDE.md,
+# or ~/.kimi-code/AGENTS.md depending on the target.
+instructions: |
+  Be concise. Prefer the standard library.
+
 skills:
   - name: code-review
     source: local

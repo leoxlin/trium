@@ -9,9 +9,10 @@ import (
 type Kind string
 
 const (
-	Skills  Kind = "skills"
-	Plugins Kind = "plugins"
-	MCPs    Kind = "mcps"
+	Skills       Kind = "skills"
+	Plugins      Kind = "plugins"
+	MCPs         Kind = "mcps"
+	Instructions Kind = "instructions"
 )
 
 type Action string
@@ -71,7 +72,10 @@ type namedBundle struct {
 	name, field string
 	content     bundle.Snapshot
 }
-type desired struct{ skills, plugins []namedBundle }
+type desired struct {
+	instructions    string
+	skills, plugins []namedBundle
+}
 
 type observation struct {
 	Path      string
