@@ -32,7 +32,7 @@ func TestKimiPlanApplyPlan(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if code := cli.Run(context.Background(), []string{"--file", manifestPath}, &stdout, &stderr); code != 0 {
+	if code := cli.Run(context.Background(), []string{manifestPath}, &stdout, &stderr); code != 0 {
 		t.Fatalf("plan exit %d: %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "skills/review") || !strings.Contains(stdout.String(), "ADD") {
@@ -44,7 +44,7 @@ func TestKimiPlanApplyPlan(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run(context.Background(), []string{"--file", manifestPath, "apply"}, &stdout, &stderr); code != 0 {
+	if code := cli.Run(context.Background(), []string{"apply", manifestPath}, &stdout, &stderr); code != 0 {
 		t.Fatalf("apply exit %d: %s", code, stderr.String())
 	}
 	installed, err := os.ReadFile(filepath.Join(os.Getenv("KIMI_CODE_HOME"), "skills", "review", "SKILL.md"))
@@ -54,7 +54,7 @@ func TestKimiPlanApplyPlan(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run(context.Background(), []string{"--file", manifestPath}, &stdout, &stderr); code != 0 {
+	if code := cli.Run(context.Background(), []string{manifestPath}, &stdout, &stderr); code != 0 {
 		t.Fatalf("second plan exit %d: %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "No changes (1 unchanged).") {
@@ -80,7 +80,7 @@ func TestCodexUsesSharedSkillRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
-	if code := cli.Run(context.Background(), []string{"--file", path, "apply"}, &stdout, &stderr); code != 0 {
+	if code := cli.Run(context.Background(), []string{"apply", path}, &stdout, &stderr); code != 0 {
 		t.Fatalf("apply exit %d: %s", code, stderr.String())
 	}
 	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "review", "SKILL.md")); err != nil {
@@ -109,7 +109,7 @@ func TestMultipleTargetsPlanApplyPlan(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if code := cli.Run(context.Background(), []string{"--file", manifestPath}, &stdout, &stderr); code != 0 {
+	if code := cli.Run(context.Background(), []string{manifestPath}, &stdout, &stderr); code != 0 {
 		t.Fatalf("plan exit %d: %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "skills/review") || !strings.Contains(stdout.String(), "ADD") {
@@ -127,7 +127,7 @@ func TestMultipleTargetsPlanApplyPlan(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run(context.Background(), []string{"--file", manifestPath, "apply"}, &stdout, &stderr); code != 0 {
+	if code := cli.Run(context.Background(), []string{"apply", manifestPath}, &stdout, &stderr); code != 0 {
 		t.Fatalf("apply exit %d: %s", code, stderr.String())
 	}
 	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "review", "SKILL.md")); err != nil {
@@ -140,7 +140,7 @@ func TestMultipleTargetsPlanApplyPlan(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run(context.Background(), []string{"--file", manifestPath}, &stdout, &stderr); code != 0 {
+	if code := cli.Run(context.Background(), []string{manifestPath}, &stdout, &stderr); code != 0 {
 		t.Fatalf("second plan exit %d: %s", code, stderr.String())
 	}
 	if strings.Count(stdout.String(), "No changes (1 unchanged).") != 2 {
@@ -190,9 +190,9 @@ func TestClaudePlanApplyPlan(t *testing.T) {
 				t.Helper()
 				stdout.Reset()
 				stderr.Reset()
-				args := []string{"--file", path}
+				args := []string{path}
 				if apply {
-					args = append(args, "apply")
+					args = append([]string{"apply"}, args...)
 				}
 				if code := cli.Run(context.Background(), args, &stdout, &stderr); code != 0 {
 					t.Fatalf("exit %d: %s", code, stderr.String())
@@ -238,9 +238,9 @@ func TestPluginOnlyCLI(t *testing.T) {
 	}
 	for _, command := range []string{"plan", "apply", "unchanged"} {
 		var stdout, stderr bytes.Buffer
-		args := []string{"--file", path}
+		args := []string{path}
 		if command == "apply" {
-			args = append(args, "apply")
+			args = append([]string{"apply"}, args...)
 		}
 		if code := cli.Run(context.Background(), args, &stdout, &stderr); code != 0 {
 			t.Fatalf("%s exit %d: %s", command, code, stderr.String())
@@ -291,14 +291,14 @@ func TestMCPCLI(t *testing.T) {
 				t.Fatal(err)
 			}
 			var stdout, stderr bytes.Buffer
-			if code := cli.Run(context.Background(), []string{"--file", path}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "mcps/docs") {
+			if code := cli.Run(context.Background(), []string{path}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "mcps/docs") {
 				t.Fatalf("preview: %d %s %s", code, &stdout, &stderr)
 			}
 			if _, err := os.Stat(claudeConfig); !os.IsNotExist(err) {
 				t.Fatal("preview wrote config")
 			}
 			stdout.Reset()
-			if code := cli.Run(context.Background(), []string{"--file", path, "apply"}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "Applied: mcps/docs") {
+			if code := cli.Run(context.Background(), []string{"apply", path}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "Applied: mcps/docs") {
 				t.Fatalf("apply: %d %s %s", code, &stdout, &stderr)
 			}
 			paths := []string{claudeConfig}
@@ -312,8 +312,77 @@ func TestMCPCLI(t *testing.T) {
 				}
 			}
 			stdout.Reset()
-			if code := cli.Run(context.Background(), []string{"--file", path, "apply"}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Backup:") || !strings.Contains(stdout.String(), "No changes (1 unchanged).") {
+			if code := cli.Run(context.Background(), []string{"apply", path}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Backup:") || !strings.Contains(stdout.String(), "No changes (1 unchanged).") {
 				t.Fatalf("no-op: %d %s %s", code, &stdout, &stderr)
+			}
+		})
+	}
+}
+
+func TestCommandArguments(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		args []string
+		code int
+		out  string
+		err  string
+	}{
+		{name: "root help", args: []string{"--help"}, out: "skillet [manifest]"},
+		{name: "apply help", args: []string{"apply", "--help"}, out: "skillet apply [manifest]"},
+		{name: "help command", args: []string{"help", "apply"}, out: "skillet apply [manifest]"},
+		{name: "extra root argument", args: []string{"one.yaml", "two.yaml"}, code: 2, err: "accepts at most 1 arg(s), received 2"},
+		{name: "extra apply argument", args: []string{"apply", "one.yaml", "two.yaml"}, code: 2, err: "accepts at most 1 arg(s), received 2"},
+		{name: "unknown flag", args: []string{"--unknown"}, code: 2, err: "unknown flag"},
+		{name: "unknown apply flag", args: []string{"apply", "--unknown"}, code: 2, err: "unknown flag"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			var stdout, stderr bytes.Buffer
+			if code := cli.Run(context.Background(), test.args, &stdout, &stderr); code != test.code {
+				t.Fatalf("exit = %d, want %d; stderr: %s", code, test.code, stderr.String())
+			}
+			if test.out == "" && stdout.Len() != 0 || !strings.Contains(stdout.String(), test.out) {
+				t.Fatalf("stdout = %q, want %q", stdout.String(), test.out)
+			}
+			if test.err == "" && stderr.Len() != 0 || !strings.Contains(stderr.String(), test.err) {
+				t.Fatalf("stderr = %q, want %q", stderr.String(), test.err)
+			}
+		})
+	}
+}
+
+func TestManifestDefaultsAndExitCodes(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KIMI_CODE_HOME", filepath.Join(home, "kimi"))
+	config := filepath.Join(home, ".config")
+	if err := os.Mkdir(config, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(config, "skillet.yaml")
+	for _, test := range []struct {
+		name     string
+		manifest string
+		code     int
+	}{
+		{name: "missing manifest", code: 1},
+		{name: "invalid manifest", manifest: "version: 999\n", code: 2},
+		{name: "valid manifest", manifest: "version: 1\ntarget: {agent: kimi}\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if test.manifest != "" {
+				if err := os.WriteFile(path, []byte(test.manifest), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, args := range [][]string{nil, {"apply"}} {
+				var stdout, stderr bytes.Buffer
+				if code := cli.Run(context.Background(), args, &stdout, &stderr); code != test.code {
+					t.Fatalf("args %v: exit = %d, want %d; stderr: %s", args, code, test.code, stderr.String())
+				}
+				if test.code == 0 && !strings.Contains(stdout.String(), path) {
+					t.Fatalf("args %v: output does not identify default manifest: %s", args, stdout.String())
+				}
 			}
 		})
 	}

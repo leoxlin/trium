@@ -169,7 +169,8 @@ Preview or apply the default manifest, or select another file:
 ```bash
 skillet
 skillet apply
-skillet --file /path/to/skillet.yaml
+skillet /path/to/skillet.yaml
+skillet apply /path/to/skillet.yaml
 ```
 
 Planning leaves agent files unchanged. Applying takes a per-user lock at `~/.skillet/apply.lock`, rechecks the plan,

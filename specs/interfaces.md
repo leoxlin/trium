@@ -151,6 +151,9 @@ are exported. `DriftError` identifies a changed native target.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int
 ```
 
+Cobra handles command selection, positional argument validation, and help. `skillet [manifest]` previews changes;
+`skillet apply [manifest]` applies them. An omitted manifest defaults to `~/.config/skillet.yaml`.
+
 The CLI owns arguments, process environment, home defaults, manifest file reading, formatting, and exit codes. It calls
 `manifest.Parse`, `reconcile.Prepare`, and either `Plan` or `Apply`. It renders partial results before reporting an
 operational error. Resource content and native formats are handled by the other modules.

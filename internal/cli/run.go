@@ -3,52 +3,63 @@ package cli
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/spf13/cobra"
 
 	"github.com/leoxlin/skillets/internal/manifest"
 	"github.com/leoxlin/skillets/internal/reconcile"
 )
 
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("skillet", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	manifestPath := flags.String("file", "", "manifest path")
-	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: skillet [--file <path>] [apply]")
-	}
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
+	exitCode := 0
+	run := func(cmd *cobra.Command, args []string) {
+		manifestPath := ""
+		if len(args) == 1 {
+			manifestPath = args[0]
 		}
+		exitCode = runManifest(cmd.Context(), manifestPath, cmd.Name() == "apply", stdout, stderr)
+	}
+	root := &cobra.Command{
+		Use:           "skillet [manifest]",
+		Short:         "Preview changes from an agent manifest",
+		Args:          cobra.MaximumNArgs(1),
+		Run:           run,
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		CompletionOptions: cobra.CompletionOptions{
+			DisableDefaultCmd: true,
+		},
+	}
+	root.AddCommand(&cobra.Command{
+		Use:   "apply [manifest]",
+		Short: "Apply changes from an agent manifest",
+		Args:  cobra.MaximumNArgs(1),
+		Run:   run,
+	})
+	root.SetArgs(append([]string{}, args...))
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	if err := root.ExecuteContext(ctx); err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
-	apply := false
-	switch flags.NArg() {
-	case 0:
-	case 1:
-		if flags.Arg(0) != "apply" {
-			fmt.Fprintf(stderr, "unknown command %q\n", flags.Arg(0))
-			return 2
-		}
-		apply = true
-	default:
-		fmt.Fprintln(stderr, "too many arguments")
-		return 2
-	}
+	return exitCode
+}
 
-	if *manifestPath == "" {
+func runManifest(ctx context.Context, manifestPath string, apply bool, stdout, stderr io.Writer) int {
+	if manifestPath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			fmt.Fprintf(stderr, "resolve home directory: %v\n", err)
 			return 1
 		}
-		*manifestPath = filepath.Join(home, ".config", "skillet.yaml")
+		manifestPath = filepath.Join(home, ".config", "skillet.yaml")
 	}
-	absolute, err := filepath.Abs(*manifestPath)
+	absolute, err := filepath.Abs(manifestPath)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
