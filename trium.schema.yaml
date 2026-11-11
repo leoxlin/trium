@@ -1,6 +1,6 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Skillet manifest
-description: Schema for a version 1 skillet.yaml file.
+title: trium manifest
+description: Schema for a version 1 trium.yaml file.
 type: object
 additionalProperties: false
 required:

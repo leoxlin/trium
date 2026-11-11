@@ -2,7 +2,7 @@ package manifest_test
 
 import (
 	"errors"
-	"github.com/leoxlin/skillets/internal/manifest"
+	"github.com/leoxlin/trium/internal/manifest"
 	"testing"
 )
 
@@ -82,7 +82,7 @@ mcps:
    cwd: .
  - name: remote
    url: https://example.com/mcp
-   headers: {X-Client: skillet}
+   headers: {X-Client: trium}
    bearer_token_env: MCP_TOKEN
 `))
 	if err != nil {

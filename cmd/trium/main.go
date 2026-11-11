@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/leoxlin/skillets/internal/cli"
+	"github.com/leoxlin/trium/internal/cli"
 )
 
 func main() {

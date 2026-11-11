@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./skillet.schema.yaml
+# yaml-language-server: $schema=./trium.schema.yaml
 version: 1
 
 target:
@@ -12,7 +12,7 @@ skills:
     source: local
     path: skills/code-review
   - name: team-workflows
-    source: leoxlin/skillets
+    source: leoxlin/trium
     path: skills/team-workflows
     ref: main
 
@@ -32,5 +32,5 @@ mcps:
   - name: internal-docs
     url: https://mcp.example.com/mcp
     headers:
-      X-Client: skillet-example
+      X-Client: trium-example
     bearer_token_env: INTERNAL_DOCS_TOKEN

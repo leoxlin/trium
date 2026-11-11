@@ -73,16 +73,16 @@ func (a *claudeNative) pluginRegistration(desired []namedBundle) (pluginRegistra
 		return pluginRegistration{}, err
 	}
 	catalogPath := filepath.Join(root, ".claude-plugin", "marketplace.json")
-	catalog, catalogTarget, err := readJSON(catalogPath, map[string]any{"name": "skillet", "owner": map[string]any{"name": "skillet"}, "plugins": []any{}})
+	catalog, catalogTarget, err := readJSON(catalogPath, map[string]any{"name": "trium", "owner": map[string]any{"name": "trium"}, "plugins": []any{}})
 	if err != nil {
 		return pluginRegistration{}, err
 	}
 	entries, ok := catalog["plugins"].([]any)
-	if !ok || catalog["name"] != "skillet" {
+	if !ok || catalog["name"] != "trium" {
 		return pluginRegistration{}, fmt.Errorf("unsupported Claude local marketplace")
 	}
 	localMarketplace := true
-	if value, exists := marketplaces["skillet"]; exists {
+	if value, exists := marketplaces["trium"]; exists {
 		marketplace, ok := value.(map[string]any)
 		if !ok {
 			return pluginRegistration{}, fmt.Errorf("invalid Claude marketplace record")
@@ -104,13 +104,13 @@ func (a *claudeNative) pluginRegistration(desired []namedBundle) (pluginRegistra
 	}
 	registration := pluginRegistration{targets: []observation{registryTarget, settingsTarget, marketplaceTarget, catalogTarget}}
 	for _, plugin := range desired {
-		name, key := plugin.name, plugin.name+"@skillet"
+		name, key := plugin.name, plugin.name+"@trium"
 		version, err := pluginVersion(plugin, "claude")
 		if err != nil {
 			return registration, err
 		}
 		if !localMarketplace {
-			registration.plugin(name).conflict = "skillet marketplace is managed by another source"
+			registration.plugin(name).conflict = "trium marketplace is managed by another source"
 		}
 		catalogEntry := catalogEntries[name]
 		if catalogEntry == nil {
@@ -148,7 +148,7 @@ func (a *claudeNative) pluginRegistration(desired []namedBundle) (pluginRegistra
 			if registration.plugin(name).installed != nil {
 				registration.plugin(name).conflict = "multiple plugin registrations"
 			}
-			registration.plugin(name).installed = &pluginInstall{Path: path, Enabled: isEnabled && marketplaces["skillet"] != nil && catalogEntries[name] != nil, Local: localMarketplace && id == key && record["scope"] == "user" && filepath.Clean(path) == destination}
+			registration.plugin(name).installed = &pluginInstall{Path: path, Enabled: isEnabled && marketplaces["trium"] != nil && catalogEntries[name] != nil, Local: localMarketplace && id == key && record["scope"] == "user" && filepath.Clean(path) == destination}
 		}
 		now := time.Now().UTC().Format(time.RFC3339Nano)
 		record := map[string]any{"scope": "user", "installPath": destination, "installedAt": now}
@@ -164,7 +164,7 @@ func (a *claudeNative) pluginRegistration(desired []namedBundle) (pluginRegistra
 	}
 	catalog["plugins"] = entries
 	if localMarketplace {
-		marketplace, err := objectField(marketplaces, "skillet")
+		marketplace, err := objectField(marketplaces, "trium")
 		if err != nil {
 			return registration, err
 		}

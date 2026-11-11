@@ -1,4 +1,4 @@
-module github.com/leoxlin/skillets
+module github.com/leoxlin/trium
 
 go 1.26.0
 

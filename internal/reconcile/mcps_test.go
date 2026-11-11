@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leoxlin/skillets/internal/manifest"
-	"github.com/leoxlin/skillets/internal/reconcile"
+	"github.com/leoxlin/trium/internal/manifest"
+	"github.com/leoxlin/trium/internal/reconcile"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -51,7 +51,7 @@ func TestMCPLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			spec.MCPs = []manifest.MCP{
-				{Name: "remote", URL: "https://example.com/mcp", Headers: map[string]string{"X-Client": "skillet"}, BearerTokenEnv: "MCP_TEST_TOKEN"},
+				{Name: "remote", URL: "https://example.com/mcp", Headers: map[string]string{"X-Client": "trium"}, BearerTokenEnv: "MCP_TEST_TOKEN"},
 				{Name: "review", Command: "never-execute-this-mcp-server", Args: []string{"--test"}, Env: map[string]string{"SETTING": "literal"}},
 			}
 			if agent != "claude" {
@@ -92,11 +92,11 @@ func TestMCPLifecycle(t *testing.T) {
 			}
 			switch agent {
 			case "codex":
-				if remote["bearer_token_env_var"] != "MCP_TEST_TOKEN" || remote["http_headers"].(map[string]any)["X-Client"] != "skillet" {
+				if remote["bearer_token_env_var"] != "MCP_TEST_TOKEN" || remote["http_headers"].(map[string]any)["X-Client"] != "trium" {
 					t.Fatalf("remote = %#v", remote)
 				}
 			case "kimi":
-				if remote["bearerTokenEnvVar"] != "MCP_TEST_TOKEN" || remote["headers"].(map[string]any)["X-Client"] != "skillet" {
+				if remote["bearerTokenEnvVar"] != "MCP_TEST_TOKEN" || remote["headers"].(map[string]any)["X-Client"] != "trium" {
 					t.Fatalf("remote = %#v", remote)
 				}
 			case "claude":

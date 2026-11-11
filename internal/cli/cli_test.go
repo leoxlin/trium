@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leoxlin/skillets/internal/cli"
+	"github.com/leoxlin/trium/internal/cli"
 )
 
 func TestKimiPlanApplyPlan(t *testing.T) {
@@ -26,7 +26,7 @@ func TestKimiPlanApplyPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest := "version: 1\ntarget:\n  agent: kimi\nskills:\n  - name: review\n    path: skill\n"
-	manifestPath := filepath.Join(dir, "skillet.yaml")
+	manifestPath := filepath.Join(dir, "trium.yaml")
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestCodexUsesSharedSkillRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest := "version: 1\ntarget:\n  agent: codex\nskills:\n  - name: review\n    path: skill\n"
-	path := filepath.Join(dir, "skillet.yaml")
+	path := filepath.Join(dir, "trium.yaml")
 	if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestMultipleTargetsPlanApplyPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest := "version: 1\ntarget:\n  - agent: codex\n  - agent: kimi\nskills:\n  - name: review\n    path: skill\n"
-	manifestPath := filepath.Join(dir, "skillet.yaml")
+	manifestPath := filepath.Join(dir, "trium.yaml")
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestClaudePlanApplyPlan(t *testing.T) {
 				declaration += fmt.Sprintf("  path: %q\n", override)
 			}
 			declaration += "skills:\n  - name: review\n    path: skill\n"
-			path := filepath.Join(dir, "skillet.yaml")
+			path := filepath.Join(dir, "trium.yaml")
 			if err := os.WriteFile(path, []byte(declaration), 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -231,7 +231,7 @@ func TestPluginOnlyCLI(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(plugin, "kimi.plugin.json"), []byte(`{"name":"tools"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(dir, "skillet.yaml")
+	path := filepath.Join(dir, "trium.yaml")
 	declaration := fmt.Sprintf("version: 1\ntarget: {agent: kimi, path: %q}\nplugins:\n  - name: tools\n    path: plugin\n", home)
 	if err := os.WriteFile(path, []byte(declaration), 0o600); err != nil {
 		t.Fatal(err)
@@ -286,7 +286,7 @@ func TestMCPCLI(t *testing.T) {
 				claudeConfig = filepath.Join(claude, ".claude.json")
 			}
 			dir := t.TempDir()
-			path := filepath.Join(dir, "skillet.yaml")
+			path := filepath.Join(dir, "trium.yaml")
 			if err := os.WriteFile(path, []byte("version: 1\n"+targets+"mcps: [{name: docs, url: https://example.com/mcp, bearer_token_env: MCP_TOKEN}]\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -327,9 +327,9 @@ func TestCommandArguments(t *testing.T) {
 		out  string
 		err  string
 	}{
-		{name: "root help", args: []string{"--help"}, out: "skillet [manifest]"},
-		{name: "apply help", args: []string{"apply", "--help"}, out: "skillet apply [manifest]"},
-		{name: "help command", args: []string{"help", "apply"}, out: "skillet apply [manifest]"},
+		{name: "root help", args: []string{"--help"}, out: "trium [manifest]"},
+		{name: "apply help", args: []string{"apply", "--help"}, out: "trium apply [manifest]"},
+		{name: "help command", args: []string{"help", "apply"}, out: "trium apply [manifest]"},
 		{name: "extra root argument", args: []string{"one.yaml", "two.yaml"}, code: 2, err: "accepts at most 1 arg(s), received 2"},
 		{name: "extra apply argument", args: []string{"apply", "one.yaml", "two.yaml"}, code: 2, err: "accepts at most 1 arg(s), received 2"},
 		{name: "unknown flag", args: []string{"--unknown"}, code: 2, err: "unknown flag"},
@@ -359,7 +359,7 @@ func TestManifestDefaultsAndExitCodes(t *testing.T) {
 	if err := os.Mkdir(config, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(config, "skillet.yaml")
+	path := filepath.Join(config, "trium.yaml")
 	for _, test := range []struct {
 		name     string
 		manifest string

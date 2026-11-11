@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leoxlin/skillets/internal/bundle"
+	"github.com/leoxlin/trium/internal/bundle"
 )
 
 func write(t *testing.T, path, data string, mode os.FileMode) {
@@ -179,9 +179,9 @@ func TestCancellationDuringGitCleansTemporaryRepository(t *testing.T) {
 	}
 	bin := filepath.Join(root, "bin")
 	ready := filepath.Join(root, "ready")
-	write(t, filepath.Join(bin, "git"), "#!/bin/sh\n: > \"$SKILLET_TEST_READY\"\nexec sleep 30\n", 0o755)
+	write(t, filepath.Join(bin, "git"), "#!/bin/sh\n: > \"$TRIUM_TEST_READY\"\nexec sleep 30\n", 0o755)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("SKILLET_TEST_READY", ready)
+	t.Setenv("TRIUM_TEST_READY", ready)
 	t.Setenv("TMPDIR", temporary)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

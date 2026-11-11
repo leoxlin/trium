@@ -71,17 +71,17 @@ func (a *codexNative) pluginRegistration(desired []namedBundle) (pluginRegistrat
 		return pluginRegistration{}, err
 	}
 	catalogPath := filepath.Join(root, ".agents", "plugins", "marketplace.json")
-	catalog, catalogTarget, err := readJSON(catalogPath, map[string]any{"name": "skillet", "plugins": []any{}})
+	catalog, catalogTarget, err := readJSON(catalogPath, map[string]any{"name": "trium", "plugins": []any{}})
 	if err != nil {
 		return pluginRegistration{}, err
 	}
 	entries, ok := catalog["plugins"].([]any)
-	if !ok || catalog["name"] != "skillet" {
+	if !ok || catalog["name"] != "trium" {
 		return pluginRegistration{}, fmt.Errorf("unsupported Codex local marketplace")
 	}
 	registration := pluginRegistration{targets: []observation{configTarget, catalogTarget}}
 	localMarketplace := true
-	if value, exists := marketplaces["skillet"]; exists {
+	if value, exists := marketplaces["trium"]; exists {
 		record, ok := value.(map[string]any)
 		localMarketplace = ok && record["source_type"] == "local" && record["source"] == root
 	}
@@ -105,15 +105,15 @@ func (a *codexNative) pluginRegistration(desired []namedBundle) (pluginRegistrat
 			registration.plugin(name).conflict = "multiple plugin registrations"
 		}
 		byName[name] = record
-		entryConfig, hasConfig := plugins[name+"@skillet"].(map[string]any)
+		entryConfig, hasConfig := plugins[name+"@trium"].(map[string]any)
 		enabled, validEnabled := entryConfig["enabled"].(bool)
 		if hasConfig && !validEnabled {
 			return registration, fmt.Errorf("invalid Codex plugin enabled state")
 		}
-		registration.plugin(name).installed = &pluginInstall{Path: path, Enabled: enabled && marketplaces["skillet"] != nil, Local: localMarketplace && source["source"] == "local" && filepath.Clean(path) == filepath.Join(root, "managed", name)}
+		registration.plugin(name).installed = &pluginInstall{Path: path, Enabled: enabled && marketplaces["trium"] != nil, Local: localMarketplace && source["source"] == "local" && filepath.Clean(path) == filepath.Join(root, "managed", name)}
 	}
 	for _, plugin := range desired {
-		name, key := plugin.name, plugin.name+"@skillet"
+		name, key := plugin.name, plugin.name+"@trium"
 		version, err := pluginVersion(plugin, "codex")
 		if err != nil {
 			return registration, err
@@ -122,10 +122,10 @@ func (a *codexNative) pluginRegistration(desired []namedBundle) (pluginRegistrat
 			return registration, fmt.Errorf("unsafe Codex plugin version %q", version)
 		}
 		destination := filepath.Join(root, "managed", name)
-		registration.plugin(name).copies = []string{filepath.Join(root, "cache", "skillet", name, version)}
+		registration.plugin(name).copies = []string{filepath.Join(root, "cache", "trium", name, version)}
 		registration.plugin(name).path = destination
 		if !localMarketplace {
-			registration.plugin(name).conflict = "skillet marketplace is managed by another source"
+			registration.plugin(name).conflict = "trium marketplace is managed by another source"
 		}
 		for id := range plugins {
 			if strings.SplitN(id, "@", 2)[0] == name && id != key {
@@ -151,7 +151,7 @@ func (a *codexNative) pluginRegistration(desired []namedBundle) (pluginRegistrat
 		entryConfig["enabled"] = true
 	}
 	if localMarketplace {
-		marketplace, err := objectField(marketplaces, "skillet")
+		marketplace, err := objectField(marketplaces, "trium")
 		if err != nil {
 			return registration, err
 		}

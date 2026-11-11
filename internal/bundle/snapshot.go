@@ -41,7 +41,7 @@ func (e *UnsafePathError) Error() string { return fmt.Sprintf("%s: %s", e.Path, 
 
 func hashFiles(files []File) Digest {
 	h := sha256.New()
-	h.Write([]byte("skillet-bundle-v1\x00"))
+	h.Write([]byte("trium-bundle-v1\x00"))
 	for _, file := range files {
 		var pathLength [4]byte
 		binary.BigEndian.PutUint32(pathLength[:], uint32(len(file.Path)))

@@ -16,8 +16,8 @@ The CLI reads environment variables and supplies absolute `Homes` values. A mani
 | Kimi | `KIMI_CODE_HOME` | `~/.kimi-code` | `<agent-home>/skills` |
 
 Codex's shared skill location remains tied to the user home when its agent home is overridden. Kimi and Claude skill
-locations follow their selected agent homes. The common apply lock is `<user-home>/.skillet/apply.lock`; backups remain
-under each selected agent home's `.skillet/backups` directory.
+locations follow their selected agent homes. The common apply lock is `<user-home>/.trium/apply.lock`; backups remain
+under each selected agent home's `.trium/backups` directory.
 
 ## Skills
 
@@ -42,16 +42,16 @@ or Kimi ID in its native manifest. Codex validates the version used in its cache
 
 The current implementation uses direct native-file operations:
 
-- Codex writes `plugins/.agents/plugins/marketplace.json`, `[marketplaces.skillet]`, and `[plugins."<name>@skillet"]` in
-  `config.toml`. It also installs `plugins/cache/skillet/<name>/<version>`. Older cache versions remain.
+- Codex writes `plugins/.agents/plugins/marketplace.json`, `[marketplaces.trium]`, and `[plugins."<name>@trium"]` in
+  `config.toml`. It also installs `plugins/cache/trium/<name>/<version>`. Older cache versions remain.
 - Claude writes `plugins/managed/.claude-plugin/marketplace.json`, `plugins/known_marketplaces.json`, version-2
-  `plugins/installed_plugins.json`, and `settings.json`'s `enabledPlugins`. User-scope IDs are `<name>@skillet`.
+  `plugins/installed_plugins.json`, and `settings.json`'s `enabledPlugins`. User-scope IDs are `<name>@trium`.
 - Kimi writes version-1 `plugins/installed.json` with `source: "local-path"`, a managed root, and enabled state.
 
 A private per-plugin record groups the intended path, cache copies, installed state, and conflict. Native adapters own
 registry interpretation; shared planning owns bundle comparisons and replacement construction.
 
-Only registrations at Skillet's managed local paths are eligible for update. External sources, scopes, duplicates,
+Only registrations at trium's managed local paths are eligible for update. External sources, scopes, duplicates,
 missing bundles, orphan bundles, and unsafe paths block apply. Equal bundle content with disabled native state or a
 changed cache requires an update. Plugins are enabled for later agent sessions; installation executes no plugin content.
 
@@ -64,7 +64,7 @@ The CLI supplies the explicit Claude state path through `Homes.ClaudeConfig` whe
 
 Stdio maps command, arguments, environment, and working directory. Claude rejects working directories during
 preparation. HTTP maps URLs and headers; token references use Codex's `bearer_token_env_var`, Kimi's
-`bearerTokenEnvVar`, and Claude's Authorization header with a native environment reference. Skillet never resolves token
+`bearerTokenEnvVar`, and Claude's Authorization header with a native environment reference. trium never resolves token
 values. Declared connection fields are replaced, including stale transport fields, while unrelated native server options
 remain. Codex and Kimi entries are enabled; Claude's separate approval and disable policies are preserved.
 

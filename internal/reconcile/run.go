@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/leoxlin/skillets/internal/bundle"
-	"github.com/leoxlin/skillets/internal/manifest"
+	"github.com/leoxlin/trium/internal/bundle"
+	"github.com/leoxlin/trium/internal/manifest"
 )
 
 type Homes struct {
@@ -57,7 +57,7 @@ func Prepare(ctx context.Context, spec manifest.Manifest, baseDir string, homes 
 	if homes.ClaudeConfig != "" && !filepath.IsAbs(homes.ClaudeConfig) {
 		return nil, errors.New("Claude config path must be absolute")
 	}
-	p := &Prepared{mcps: prepareMCPs(spec.MCPs, baseDir), lockPath: filepath.Join(homes.User, ".skillet", "apply.lock")}
+	p := &Prepared{mcps: prepareMCPs(spec.MCPs, baseDir), lockPath: filepath.Join(homes.User, ".trium", "apply.lock")}
 	seenTargets := map[string]bool{}
 	for i, target := range spec.Targets {
 		home := target.Path
@@ -199,7 +199,7 @@ func (p *Prepared) Apply(ctx context.Context) (results []TargetResult, err error
 			if len(batch.writes) == 0 {
 				continue
 			}
-			report, err := applyBatch(ctx, filepath.Join(target.home, ".skillet", "backups"), batch, func(ctx context.Context) error {
+			report, err := applyBatch(ctx, filepath.Join(target.home, ".trium", "backups"), batch, func(ctx context.Context) error {
 				verified, err := p.planTarget(ctx, target)
 				if err != nil {
 					return err

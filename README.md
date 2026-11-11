@@ -1,23 +1,19 @@
-# skillets
+# trium
 
-<div align="center">
-  <img src="skillets.png" alt="skillets" width="250">
-  <br>
-  An easy way to manage my agent skills — and more.
-</div>
+Manage skills, plugins, and MCP server configurations for Codex, Claude Code, and Kimi Code from one YAML manifest.
 
-## Tracer bullet
+Declare local or Git-sourced bundles and MCP connections, preview the changes, then apply them across your agents.
+trium preserves undeclared resources and backs up files before replacing them.
 
-The CLI reconciles local and Git-sourced skills and plugins, plus MCP server configurations, for Codex, Claude Code,
-and Kimi Code.
+## Quick start
 
 Build the CLI:
 
 ```bash
-go build ./cmd/skillet
+go build ./cmd/trium
 ```
 
-Create `~/.config/skillet.yaml`:
+Create `~/.config/trium.yaml`:
 
 ```yaml
 version: 1
@@ -104,13 +100,13 @@ that plugin. The native manifest must contain a matching name (or Kimi ID) for e
 | Claude | `.claude-plugin/plugin.json` |
 | Kimi | `kimi.plugin.json` or `.kimi-plugin/plugin.json` |
 
-Applying installs and enables plugins. Codex and Claude use a local `skillet` marketplace under the selected agent home;
+Applying installs and enables plugins. Codex and Claude use a local `trium` marketplace under the selected agent home;
 Kimi uses its native local installation registry. Managed sources live under `<agent-home>/plugins/managed/<name>`.
 Codex also receives a native versioned cache copy. Older Codex cache versions are retained when versions change.
-Plugin code, hooks, and MCP servers may run in later agent sessions; Skillet does not execute them during installation.
+Plugin code, hooks, and MCP servers may run in later agent sessions; trium does not execute them during installation.
 Restart or reload the agent to pick up changes.
 
-Only local installations at Skillet's managed paths are eligible for updates. Matching plugins from other marketplaces
+Only local installations at trium's managed paths are eligible for updates. Matching plugins from other marketplaces
 or scopes, missing managed bundles, duplicate registrations, and unsafe paths block apply before skill or plugin
 writes. Unrelated native settings and plugins are preserved. A skill and plugin can share a name without sharing
 installed files.
@@ -127,7 +123,7 @@ mcps:
   - name: docs
     url: https://mcp.example.com/mcp
     headers:
-      X-Client: skillet
+      X-Client: trium
     bearer_token_env: DOCS_TOKEN
 ```
 
@@ -144,12 +140,12 @@ servers that require a particular working directory. Other command arguments and
 
 For Claude, setting `CLAUDE_CONFIG_DIR` or `target.path` places `.claude.json` inside that agent home instead.
 When using `target.path`, launch Claude with the same `CLAUDE_CONFIG_DIR` to load that configuration.
-Bearer token references stay in native configuration and are resolved by the agent at runtime; Skillet never reads
+Bearer token references stay in native configuration and are resolved by the agent at runtime; trium never reads
 the token. Claude uses `Authorization: Bearer ${DOCS_TOKEN}`; Codex and Kimi use their native token-variable fields.
 
 Applying reconciles declared connection fields, preserves native server options such as tool policy and timeouts,
 and enables Codex and Kimi entries. Claude's existing approval and disable policies remain in effect.
-Undeclared servers and unrelated settings remain. Servers are never launched or contacted by Skillet;
+Undeclared servers and unrelated settings remain. Servers are never launched or contacted by trium;
 restart or reload the agent to use the configuration. Native configuration rewrites can change formatting and comments;
 backups retain the original bytes.
 
@@ -167,19 +163,26 @@ location remains under the real home directory.
 Preview or apply the default manifest, or select another file:
 
 ```bash
-skillet
-skillet apply
-skillet /path/to/skillet.yaml
-skillet apply /path/to/skillet.yaml
+trium
+trium apply
+trium /path/to/trium.yaml
+trium apply /path/to/trium.yaml
 ```
 
-Planning leaves agent files unchanged. Applying takes a per-user lock at `~/.skillet/apply.lock`, rechecks the plan,
-retains backups under the selected agent's `.skillet/backups` directory, and replaces declared skill and plugin bundles
+Planning leaves agent files unchanged. Applying takes a per-user lock at `~/.trium/apply.lock`, rechecks the plan,
+retains backups under the selected agent's `.trium/backups` directory, and replaces declared skill and plugin bundles
 and updates declared MCP connections. The lock covers all selected agents, including shared skill destinations; its file
 remains after unlocking. Undeclared resources are left alone. Each resource class restores its own affected bundles and
 registry files if writing or verification fails. Earlier successful resource classes remain applied.
 
-The manifest format is documented in [`skillet.schema.yaml`](skillet.schema.yaml).
+## Configuration and state
+
+The default manifest is `~/.config/trium.yaml`. See [`trium.example.yaml`](trium.example.yaml) for a complete example and
+[`trium.schema.yaml`](trium.schema.yaml) for the manifest schema.
+
+trium uses `~/.trium/apply.lock` to serialize applies, `<agent-home>/.trium/backups` for recovery copies, and the
+`trium` marketplace for managed Codex and Claude plugins. Existing installations from an earlier project name need their
+manifest and managed plugin registrations updated to these names before applying.
 
 ## License
 

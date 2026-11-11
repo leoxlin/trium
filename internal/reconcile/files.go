@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/leoxlin/skillets/internal/bundle"
+	"github.com/leoxlin/trium/internal/bundle"
 )
 
 // checkPath rejects symlinks in all existing target ancestors, including missing children.
@@ -295,7 +295,7 @@ func applyBatch(ctx context.Context, backupRoot string, batch writeBatch, verify
 		if err := os.MkdirAll(filepath.Dir(write.Path), 0o755); err != nil {
 			return report, err
 		}
-		stage, err := os.MkdirTemp(filepath.Dir(write.Path), ".skillet-stage-")
+		stage, err := os.MkdirTemp(filepath.Dir(write.Path), ".trium-stage-")
 		if err != nil {
 			return report, err
 		}

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/leoxlin/skillets/internal/bundle"
-	"github.com/leoxlin/skillets/internal/manifest"
+	"github.com/leoxlin/trium/internal/bundle"
+	"github.com/leoxlin/trium/internal/manifest"
 	"github.com/pelletier/go-toml/v2"
 )
 

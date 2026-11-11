@@ -11,7 +11,7 @@ backups. Output is deterministic by target order, resource class, and resource n
 
 ## Apply
 
-1. Acquire the per-user advisory lock at `<user-home>/.skillet/apply.lock`.
+1. Acquire the per-user advisory lock at `<user-home>/.trium/apply.lock`.
 2. For each target, compute a fresh private plan from the prepared snapshots and current native state.
 3. If planning fails or any class has conflicts, stop before resource writes for that target.
 4. Apply nonempty batches in skills/plugins/mcps order.
@@ -21,7 +21,7 @@ backups. Output is deterministic by target order, resource class, and resource n
 
 The Unix advisory lock is nonblocking. A held lock fails apply. Its file persists, while ownership ends when the
 process closes its descriptor or exits. Preview does not interact with it. A shared user lock also covers Codex skills
-used by different Codex homes. It coordinates Skillet processes using the same user home; external writers remain
+used by different Codex homes. It coordinates trium processes using the same user home; external writers remain
 outside that coordination.
 
 ## Write batches
@@ -45,12 +45,12 @@ A fresh native plan verifies the completed resource class. Any remaining add, up
 verification. Failed writes or verification restore the affected targets in reverse order. Cancellation stops further
 work and restores an in-progress batch before returning. Recovery itself is not canceled.
 
-Successful backups remain under `<agent-home>/.skillet/backups/run-*`. Incomplete restoration retains temporary recovery
+Successful backups remain under `<agent-home>/.trium/backups/run-*`. Incomplete restoration retains temporary recovery
 files and names them in warnings. Stage-cleanup failures are also reported. Earlier successful resource classes and
 targets are not rolled back.
 
 These operations provide rollback for detected failures, not global atomicity or automatic process-crash recovery.
-A failed operation can leave administrative directories and backups. Native agent processes do not honor Skillet's
+A failed operation can leave administrative directories and backups. Native agent processes do not honor trium's
 lock; observation checks reduce drift risk without eliminating every race with external writers.
 
 ## Ownership and idempotence
@@ -63,7 +63,7 @@ JSON.
 
 After a successful apply, another plan against the same prepared snapshots and unchanged native state reports no
 changes. A second apply creates no new backups. Plugin runtime behavior and successful agent loading are outside this
-installation guarantee; Skillet never runs plugin code, skill scripts, or MCP commands and does not contact MCP
+installation guarantee; trium never runs plugin code, skill scripts, or MCP commands and does not contact MCP
 endpoints.
 
 ## Exit status

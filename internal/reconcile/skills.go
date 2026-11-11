@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/leoxlin/skillets/internal/bundle"
+	"github.com/leoxlin/trium/internal/bundle"
 	"gopkg.in/yaml.v3"
 )
 

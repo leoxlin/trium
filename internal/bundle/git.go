@@ -20,7 +20,7 @@ import (
 func snapshotGit(ctx context.Context, workingDir, repositoryURL, ref, bundlePath string) (source string, files []File, err error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	temporary, err := os.MkdirTemp("", "skillet-git-*")
+	temporary, err := os.MkdirTemp("", "trium-git-*")
 	if err != nil {
 		return "", nil, err
 	}

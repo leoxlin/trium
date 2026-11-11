@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leoxlin/skillets/internal/manifest"
-	"github.com/leoxlin/skillets/internal/reconcile"
+	"github.com/leoxlin/trium/internal/manifest"
+	"github.com/leoxlin/trium/internal/reconcile"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -135,7 +135,7 @@ func (f *fixture) disable() {
 	}
 	doc["unrelated"] = map[string]any{"keep": true}
 	if f.kind == "claude" {
-		doc["enabledPlugins"].(map[string]any)["review@skillet"] = false
+		doc["enabledPlugins"].(map[string]any)["review@trium"] = false
 	} else {
 		doc["plugins"].([]any)[0].(map[string]any)["enabled"] = false
 	}
@@ -266,16 +266,16 @@ func TestPluginConflictsBlockSkillWrites(t *testing.T) {
 						case "external source":
 							if kind == "claude" {
 								records := doc["plugins"].(map[string]any)
-								records["review@marketplace"] = records["review@skillet"]
-								delete(records, "review@skillet")
+								records["review@marketplace"] = records["review@trium"]
+								delete(records, "review@trium")
 							} else {
 								doc["plugins"].([]any)[0].(map[string]any)["source"] = "github"
 							}
 						case "duplicate records":
 							if kind == "claude" {
 								records := doc["plugins"].(map[string]any)
-								entries := records["review@skillet"].([]any)
-								records["review@skillet"] = append(entries, entries[0])
+								entries := records["review@trium"].([]any)
+								records["review@trium"] = append(entries, entries[0])
 							} else {
 								entries := doc["plugins"].([]any)
 								doc["plugins"] = append(entries, entries[0])
@@ -319,7 +319,7 @@ func TestCodexPolicyAndCache(t *testing.T) {
 	}
 	prepared = f.prepare("", "first")
 	apply(t, prepared)
-	cache := filepath.Join(f.home, "plugins/cache/skillet/review/1.0.0/commands/review.md")
+	cache := filepath.Join(f.home, "plugins/cache/trium/review/1.0.0/commands/review.md")
 	write(t, cache, []byte("drift"))
 	action(t, plan(t, prepared), reconcile.Plugins, reconcile.Update)
 	apply(t, prepared)
@@ -329,7 +329,7 @@ func TestCodexPolicyAndCache(t *testing.T) {
 	f.version = "2.0.0"
 	prepared = f.prepare("", "second")
 	apply(t, prepared)
-	if string(read(t, filepath.Join(f.home, "plugins/cache/skillet/review/2.0.0/commands/review.md"))) != "second" {
+	if string(read(t, filepath.Join(f.home, "plugins/cache/trium/review/2.0.0/commands/review.md"))) != "second" {
 		t.Fatal("new cache missing")
 	}
 	read(t, cache)

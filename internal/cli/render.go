@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/leoxlin/skillets/internal/bundle"
-	"github.com/leoxlin/skillets/internal/reconcile"
+	"github.com/leoxlin/trium/internal/bundle"
+	"github.com/leoxlin/trium/internal/reconcile"
 )
 
 func renderPlan(w io.Writer, manifestPath string, plan reconcile.TargetPlan) {

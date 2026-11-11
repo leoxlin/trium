@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/leoxlin/skillets/internal/manifest"
-	"github.com/leoxlin/skillets/internal/reconcile"
+	"github.com/leoxlin/trium/internal/manifest"
+	"github.com/leoxlin/trium/internal/reconcile"
 )
 
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -24,7 +24,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		exitCode = runManifest(cmd.Context(), manifestPath, cmd.Name() == "apply", stdout, stderr)
 	}
 	root := &cobra.Command{
-		Use:           "skillet [manifest]",
+		Use:           "trium [manifest]",
 		Short:         "Preview changes from an agent manifest",
 		Args:          cobra.MaximumNArgs(1),
 		Run:           run,
@@ -57,7 +57,7 @@ func runManifest(ctx context.Context, manifestPath string, apply bool, stdout, s
 			fmt.Fprintf(stderr, "resolve home directory: %v\n", err)
 			return 1
 		}
-		manifestPath = filepath.Join(home, ".config", "skillet.yaml")
+		manifestPath = filepath.Join(home, ".config", "trium.yaml")
 	}
 	absolute, err := filepath.Abs(manifestPath)
 	if err != nil {

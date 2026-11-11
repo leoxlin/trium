@@ -3,7 +3,7 @@ package reconcile
 import (
 	"fmt"
 
-	"github.com/leoxlin/skillets/internal/bundle"
+	"github.com/leoxlin/trium/internal/bundle"
 )
 
 type Kind string

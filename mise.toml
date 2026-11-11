@@ -2,13 +2,13 @@
 go = "1.26.0"
 
 [tasks.build]
-description = "Build the skillet CLI locally"
-run = "go build ./cmd/skillet"
+description = "Build the trium CLI locally"
+run = "go build ./cmd/trium"
 
 [tasks.test]
 description = "Run all tests"
 run = "go test ./..."
 
 [tasks.dev]
-description = "Run the skillet CLI"
-run = "go run ./cmd/skillet"
+description = "Run the trium CLI"
+run = "go run ./cmd/trium"

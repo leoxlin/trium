@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leoxlin/skillets/internal/bundle"
-	"github.com/leoxlin/skillets/internal/manifest"
+	"github.com/leoxlin/trium/internal/bundle"
+	"github.com/leoxlin/trium/internal/manifest"
 )
 
 func testWrite(t *testing.T, path, data string) {
@@ -52,7 +52,7 @@ func TestBatchDriftIncludesReadOnlyPolicy(t *testing.T) {
 	}
 	// The skill destination is unchanged; only policy changes after its observation.
 	testWrite(t, filepath.Join(target.home, "config.toml"), "model = 'changed'\n")
-	report, err := applyBatch(context.Background(), filepath.Join(target.home, ".skillet/backups"), planned.batches[0], func(context.Context) error { return nil })
+	report, err := applyBatch(context.Background(), filepath.Join(target.home, ".trium/backups"), planned.batches[0], func(context.Context) error { return nil })
 	var drift *DriftError
 	if !errors.As(err, &drift) || drift.Path != filepath.Join(target.home, "config.toml") || len(report.Backups) != 0 {
 		t.Fatalf("drift = %#v %v", report, err)
@@ -75,7 +75,7 @@ func TestPluginRegistryDriftPreventsBundleWrites(t *testing.T) {
 			batch := planned.batches[1]
 			registry := batch.reads[0].Path
 			testWrite(t, registry, "{}")
-			_, err = applyBatch(context.Background(), filepath.Join(target.home, ".skillet/backups"), batch, func(context.Context) error { return nil })
+			_, err = applyBatch(context.Background(), filepath.Join(target.home, ".trium/backups"), batch, func(context.Context) error { return nil })
 			var drift *DriftError
 			if !errors.As(err, &drift) {
 				t.Fatalf("drift = %v", err)
@@ -141,7 +141,7 @@ func TestBatchRollbackRetainsBackups(t *testing.T) {
 			if _, err := os.Stat(added); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("addition survived rollback: %v", err)
 			}
-			stages, err := filepath.Glob(filepath.Join(root, ".skillet-stage-*"))
+			stages, err := filepath.Glob(filepath.Join(root, ".trium-stage-*"))
 			if err != nil || len(stages) != 0 {
 				t.Fatalf("stages leaked: %v %v", stages, err)
 			}
@@ -206,7 +206,7 @@ func TestApplyLockIsSharedAcrossTargetHomes(t *testing.T) {
 }
 
 func TestLockReleasedOnProcessExit(t *testing.T) {
-	if path := os.Getenv("SKILLET_TEST_LOCK"); path != "" {
+	if path := os.Getenv("TRIUM_TEST_LOCK"); path != "" {
 		if _, err := acquireLock(context.Background(), path); err != nil {
 			t.Fatal(err)
 		}
@@ -214,7 +214,7 @@ func TestLockReleasedOnProcessExit(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "apply.lock")
 	command := exec.Command(os.Args[0], "-test.run=^TestLockReleasedOnProcessExit$")
-	command.Env = append(os.Environ(), "SKILLET_TEST_LOCK="+path)
+	command.Env = append(os.Environ(), "TRIUM_TEST_LOCK="+path)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("child: %s %v", output, err)
 	}
@@ -309,7 +309,7 @@ func TestStagingFailureDoesNotReplaceEarlierTargets(t *testing.T) {
 	if err != nil || string(data) != "original" {
 		t.Fatalf("earlier target replaced: %q %v", data, err)
 	}
-	stages, _ := filepath.Glob(filepath.Join(root, ".skillet-stage-*"))
+	stages, _ := filepath.Glob(filepath.Join(root, ".trium-stage-*"))
 	if len(stages) != 0 {
 		t.Fatalf("staging files retained: %v", stages)
 	}
