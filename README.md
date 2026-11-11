@@ -1,6 +1,6 @@
 # trium
 
-Manage skills, plugins, and MCP servers for Codex, Claude Code, and Kimi Code from one YAML manifest.
+Manage skills, plugins, and MCP servers across your coding agents from one YAML manifest.
 Keep your agents configured consistently, preview changes before applying them, and leave undeclared resources alone.
 trium backs up files before replacing them.
 
